@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, ScrollView, Alert, KeyboardAvoidingView, Platform, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TextInput, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { get, put } from '../../../../services/api';
 import { Button } from '../../../../components/ui/Button';
 import { colors } from '../../../../constants/colors';
+import { useToast } from '../../../../components/Toast';
 
 export default function EditFacility() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
+  const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
@@ -35,7 +37,7 @@ export default function EditFacility() {
         }
       } catch (error) {
         console.error('Error fetching facility:', error);
-        Alert.alert('Error', 'Failed to load facility data');
+        showToast('Failed to load facility data', 'error');
       } finally {
         setLoading(false);
       }
@@ -45,7 +47,7 @@ export default function EditFacility() {
 
   const handleSave = async () => {
     if (!formData.name || !formData.address) {
-      Alert.alert('Error', 'Name and Address are required');
+      showToast('Name and Address are required', 'error');
       return;
     }
 
@@ -55,10 +57,10 @@ export default function EditFacility() {
         ...formData,
         total_slots: parseInt(formData.total_slots, 10),
       });
-      Alert.alert('Success', 'Facility updated successfully');
+      showToast('Facility updated successfully', 'success');
       router.back();
     } catch (error: any) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to update facility');
+      showToast(error.response?.data?.message || 'Failed to update facility', 'error');
     } finally {
       setSaving(false);
     }

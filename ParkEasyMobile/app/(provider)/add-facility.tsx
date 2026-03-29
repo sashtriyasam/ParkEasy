@@ -5,9 +5,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { post } from '../../services/api';
 import { Button } from '../../components/ui/Button';
 import { colors } from '../../constants/colors';
+import { useToast } from '../../components/Toast';
 
 export default function AddFacility() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -22,7 +24,7 @@ export default function AddFacility() {
 
   const handleSubmit = async () => {
     if (!formData.name || !formData.address || !formData.latitude || !formData.longitude) {
-      Alert.alert('Error', 'Please fill in all required fields marked with *');
+      showToast('Please fill in all required fields.', 'error');
       return;
     }
 
@@ -41,10 +43,10 @@ export default function AddFacility() {
       };
 
       await post('/provider/facilities', payload);
-      Alert.alert('Success', 'Facility created successfully!');
+      showToast('Facility created successfully!', 'success');
       router.back();
     } catch (error: any) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to create facility');
+      showToast(error.response?.data?.message || 'Failed to create facility', 'error');
     } finally {
       setLoading(false);
     }

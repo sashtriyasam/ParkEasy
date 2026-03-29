@@ -44,6 +44,8 @@ export default function RootLayout() {
     loadFromStorage();
   }, []);
 
+  useOTAUpdate();
+
   useEffect(() => {
     if (isInitialized) {
       SplashScreen.hideAsync();

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useBookingFlowStore } from '../../../store/bookingFlowStore';
@@ -9,9 +9,11 @@ import { Card } from '../../../components/ui/Card';
 import { colors } from '../../../constants/colors';
 import { PaymentMethod } from '../../../types';
 import { PaymentSheet } from '../../../components/PaymentSheet';
+import { useToast } from '../../../components/Toast';
 
 export default function PaymentScreen() {
   const router = useRouter();
+  const { showToast } = useToast();
   const { 
     facilityId, 
     facilityName, 
@@ -55,7 +57,7 @@ export default function PaymentScreen() {
       
     } catch (e: any) {
       console.error('Booking Error', e);
-      Alert.alert('Booking Failed', e.response?.data?.message || 'There was an error creating your booking.');
+      showToast(e.response?.data?.message || 'There was an error creating your booking.', 'error');
     } finally {
       setLoading(false);
     }
