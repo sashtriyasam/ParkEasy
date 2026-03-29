@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, FlatList, RefreshControl } from 'react-native';
 import { get } from '../../services/api';
 import { Card } from '../../components/ui/Card';
 import { colors } from '../../constants/colors';
+import { EmptyState } from '../../components/EmptyState';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function ProviderBookings() {
   const [bookings, setBookings] = useState<any[]>([]);
@@ -71,9 +73,11 @@ export default function ProviderBookings() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListEmptyComponent={
           !loading ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No bookings across your facilities yet.</Text>
-            </View>
+            <EmptyState
+              icon="list-outline"
+              title="No bookings yet"
+              subtitle="All bookings across your facilities will appear here."
+            />
           ) : null
         }
       />

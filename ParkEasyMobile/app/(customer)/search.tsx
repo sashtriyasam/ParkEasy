@@ -6,6 +6,7 @@ import { get } from '../../services/api';
 import { ParkingFacilityCard } from '../../components/ParkingFacilityCard';
 import { colors, VEHICLE_TYPE_COLORS } from '../../constants/colors';
 import { ParkingFacility, VehicleType } from '../../types';
+import { EmptyState } from '../../components/EmptyState';
 
 export default function SearchScreen() {
   const router = useRouter();
@@ -112,11 +113,13 @@ export default function SearchScreen() {
           )}
         />
       ) : (
-        <View style={styles.center}>
-          <Text style={styles.emptyIcon}>🔍</Text>
-          <Text style={styles.emptyTitle}>No parking found near you</Text>
-          <Text style={styles.emptySub}>Try adjusting your search or filters.</Text>
-        </View>
+        <EmptyState
+          icon="search-outline"
+          title="No parking found"
+          subtitle="Try adjusting your search query or vehicle type filter to find more spots."
+          actionLabel="Clear Filters"
+          onAction={() => { setQuery(''); setVehicleType(null); }}
+        />
       )}
     </KeyboardAvoidingView>
   );

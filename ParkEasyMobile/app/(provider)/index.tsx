@@ -4,6 +4,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { get } from '../../services/api';
 import { Card } from '../../components/ui/Card';
 import { colors } from '../../constants/colors';
+import { EmptyState } from '../../components/EmptyState';
+import { useAuthStore } from '../../store/authStore';
+import { useRouter } from 'expo-router';
+import { TouchableOpacity } from 'react-native';
 
 export default function ProviderDashboard() {
   const [stats, setStats] = useState({
@@ -12,6 +16,8 @@ export default function ProviderDashboard() {
     todayRevenue: 0,
     totalRevenue: 0,
   });
+  const { user } = useAuthStore();
+  const router = useRouter();
   const [recentBookings, setRecentBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -45,6 +51,13 @@ export default function ProviderDashboard() {
     fetchDashboardData();
   };
 
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
+  };
+
   if (loading && !refreshing) {
     return (
       <View style={styles.center}>
@@ -59,42 +72,71 @@ export default function ProviderDashboard() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       <View style={styles.header}>
-        <Text style={styles.title}>Dashboard</Text>
-        <Text style={styles.subtitle}>Overview of your parking facilities</Text>
+        <Text style={styles.greeting}>{getGreeting()}, {user?.name?.split(' ')[0] || 'Partner'}</Text>
+        <Text style={styles.title}>Operation Center</Text>
       </View>
 
       <View style={styles.statsGrid}>
         <Card style={styles.statCard}>
           <View style={[styles.iconContainer, { backgroundColor: colors.primaryLight }]}>
-            <Ionicons name="business-outline" size={24} color={colors.primary} />
+            <Ionicons name="business" size={24} color={colors.primary} />
           </View>
           <Text style={styles.statValue}>{stats.activeFacilities}</Text>
-          <Text style={styles.statLabel}>Active Facilities</Text>
+          <Text style={styles.statLabel}>Facilities</Text>
         </Card>
 
         <Card style={styles.statCard}>
           <View style={[styles.iconContainer, { backgroundColor: colors.success + '20' }]}>
-            <Ionicons name="cash-outline" size={24} color={colors.success} />
+            <Ionicons name="cash" size={24} color={colors.success} />
           </View>
           <Text style={styles.statValue}>₹{stats.todayRevenue}</Text>
           <Text style={styles.statLabel}>Today's Revenue</Text>
         </Card>
+      </View>
 
-        <Card style={styles.statCard}>
-          <View style={[styles.iconContainer, { backgroundColor: colors.warning + '20' }]}>
-            <Ionicons name="calendar-outline" size={24} color={colors.warning} />
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Quick Actions</Text>
+      </View>
+      <View style={styles.actionsGrid}>
+        <TouchableOpacity 
+          style={styles.actionItem} 
+          onPress={() => router.push('/(provider)/add-facility')}
+        >
+          <View style={[styles.actionIcon, { backgroundColor: colors.primary }]}>
+            <Ionicons name="add" size={24} color={colors.surface} />
           </View>
-          <Text style={styles.statValue}>{stats.activeBookings}</Text>
-          <Text style={styles.statLabel}>Active Bookings</Text>
-        </Card>
+          <Text style={styles.actionLabel}>Add Facility</Text>
+        </TouchableOpacity>
 
-        <Card style={styles.statCard}>
-          <View style={[styles.iconContainer, { backgroundColor: colors.info + '20' }]}>
-            <Ionicons name="bar-chart-outline" size={24} color={colors.info} />
+        <TouchableOpacity 
+          style={styles.actionItem} 
+          onPress={() => router.push('/(provider)/facilities')}
+        >
+          <View style={[styles.actionIcon, { backgroundColor: colors.info }]}>
+            <Ionicons name="list" size={24} color={colors.surface} />
           </View>
-          <Text style={styles.statValue}>₹{stats.totalRevenue}</Text>
-          <Text style={styles.statLabel}>Total Revenue</Text>
-        </Card>
+          <Text style={styles.actionLabel}>View All</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.actionItem} 
+          onPress={() => router.push('/(provider)/earnings')}
+        >
+          <View style={[styles.actionIcon, { backgroundColor: colors.success }]}>
+            <Ionicons name="wallet-outline" size={24} color={colors.surface} />
+          </View>
+          <Text style={styles.actionLabel}>Earnings</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.actionItem} 
+          onPress={() => router.push('/(provider)/bookings')}
+        >
+          <View style={[styles.actionIcon, { backgroundColor: colors.warning }]}>
+            <Ionicons name="calendar" size={24} color={colors.surface} />
+          </View>
+          <Text style={styles.actionLabel}>Bookings</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.sectionHeader}>
@@ -124,12 +166,11 @@ export default function ProviderDashboard() {
             </Card>
           ))
         ) : (
-          <Card style={styles.emptyCard}>
-            <View style={styles.emptyActivity}>
-              <Ionicons name="time-outline" size={48} color={colors.textMuted} />
-              <Text style={styles.emptyText}>No recent activity found</Text>
-            </View>
-          </Card>
+          <EmptyState
+            icon="calendar-outline"
+            title="No recent activity"
+            subtitle="Your facility's bookings and entries will appear here."
+          />
         )}
       </View>
     </ScrollView>
@@ -155,14 +196,49 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     color: colors.textPrimary,
+  },
+  greeting: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '600',
+    marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
     color: colors.textSecondary,
     marginTop: 4,
+  },
+  actionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    padding: 16,
+    gap: 16,
+  },
+  actionItem: {
+    flex: 1,
+    minWidth: '45%',
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  actionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  actionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textPrimary,
   },
   statsGrid: {
     flexDirection: 'row',

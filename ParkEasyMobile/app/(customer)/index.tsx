@@ -7,9 +7,12 @@ import { ParkingFacilityCard } from '../../components/ParkingFacilityCard';
 import { get } from '../../services/api';
 import { colors } from '../../constants/colors';
 import { ParkingFacility } from '../../types';
+import { EmptyState } from '../../components/EmptyState';
+import { useAuthStore } from '../../store/authStore';
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { user } = useAuthStore();
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [nearbyFacilities, setNearbyFacilities] = useState<ParkingFacility[]>([]);
@@ -73,13 +76,21 @@ export default function HomeScreen() {
     }
   };
 
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
+  };
+
   return (
     <ScrollView 
       style={styles.container}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />}
     >
       <View style={styles.header}>
-        <Text style={styles.title}>Find Parking</Text>
+        <Text style={styles.greeting}>{getGreeting()}, {user?.name?.split(' ')[0] || 'User'}</Text>
+        <Text style={styles.title}>Where are you parking today?</Text>
         
         <TouchableOpacity 
           style={styles.searchBar}
@@ -113,7 +124,13 @@ export default function HomeScreen() {
             ))}
           </ScrollView>
         ) : (
-          <Text style={styles.emptyText}>No nearby parking found</Text>
+          <EmptyState
+            icon="location-outline"
+            title="None nearby"
+            subtitle="We couldn't find any facilities in your immediate area."
+            actionLabel="Search Everywhere"
+            onAction={() => router.push('/(customer)/search')}
+          />
         )}
       </View>
 
@@ -137,7 +154,11 @@ export default function HomeScreen() {
             ))}
           </ScrollView>
         ) : (
-          <Text style={styles.emptyText}>No recent parking history</Text>
+          <EmptyState
+            icon="time-outline"
+            title="No history"
+            subtitle="Your recently visited parking spots will show up here."
+          />
         )}
       </View>
     </ScrollView>
@@ -155,10 +176,16 @@ const styles = StyleSheet.create({
     paddingTop: 48,
   },
   title: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: colors.textPrimary,
     marginBottom: 16,
+  },
+  greeting: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '600',
+    marginBottom: 4,
   },
   searchBar: {
     flexDirection: 'row',
