@@ -1,0 +1,41 @@
+name: ParkEasy OTA Updates
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'app/**'
+      - 'components/**'
+      - 'constants/**'
+      - 'hooks/**'
+      - 'services/**'
+      - 'store/**'
+      - 'types/**'
+      - 'utils/**'
+
+jobs:
+  update:
+    name: Publish OTA Update
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🏗 Checkout repo
+        uses: actions/checkout@v3
+
+      - name: 🏗 Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: 🏗 Setup Expo
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🚀 Publish update
+        run: eas update --auto --non-interactive
