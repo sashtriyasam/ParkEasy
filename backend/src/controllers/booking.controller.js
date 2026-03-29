@@ -14,13 +14,26 @@ const reserveSlot = asyncHandler(async (req, res) => {
 });
 
 const createBooking = asyncHandler(async (req, res, next) => {
-    const { slot_id, vehicle_number, vehicle_type } = req.body;
+    const { slot_id, vehicle_number, vehicle_type, status } = req.body;
 
-    // Assuming the user has already "reserved" or we do a direct book.
-    // If direct book, we might skip reservation or do it internally.
-    // For this flow: Confirm Booking.
+    let ticket;
+    if (status === 'PENDING') {
+        ticket = await bookingService.createPendingBooking(slot_id, req.user.id, vehicle_number, vehicle_type);
+    } else {
+        ticket = await bookingService.confirmBooking(slot_id, req.user.id, vehicle_number, vehicle_type);
+    }
 
-    const ticket = await bookingService.confirmBooking(slot_id, req.user.id, vehicle_number, vehicle_type);
+    const { sendPushNotification } = require('../utils/pushNotifications');
+    
+    // Send push notification if user has a token
+    if (req.user.push_token) {
+        sendPushNotification(
+            req.user.push_token,
+            'Booking Confirmed!',
+            `Your spot ${ticket.slot.slot_number} is ready at ${ticket.facility.name}.`,
+            { ticketId: ticket.id, facilityId: ticket.facility_id }
+        ).catch(err => console.error('Notification Error:', err));
+    }
 
     res.status(201).json({ status: 'success', data: ticket });
 });
@@ -37,10 +50,17 @@ const endBooking = asyncHandler(async (req, res, next) => {
         return next(new AppError('Active ticket not found', 404));
     }
 
-    // Check ownership (either customer or provider of the facility)
-    // For simplicity allowing customer to check out themselves or provider
-    if (req.user.role === 'CUSTOMER' && ticket.customer_id !== req.user.id) {
-        return next(new AppError('Not authorized', 403));
+    // Check ownership
+    if (req.user.role === 'CUSTOMER') {
+        if (ticket.customer_id !== req.user.id) {
+            return next(new AppError('Not authorized to end this booking', 403));
+        }
+    } else if (req.user.role === 'PROVIDER') {
+        if (ticket.slot.floor.facility.provider_id !== req.user.id) {
+            return next(new AppError('You do not have permission to manage this facility', 403));
+        }
+    } else {
+        return next(new AppError('Invalid user role', 403));
     }
 
     const exit_time = req.body.actual_exit_time ? new Date(req.body.actual_exit_time) : new Date();
@@ -74,6 +94,15 @@ const endBooking = asyncHandler(async (req, res, next) => {
 
         return updatedTicket;
     });
+
+    // Emit socket event for real-time update
+    const io = req.app.get('io');
+    if (io) {
+        io.to(`facility:${ticket.slot.floor.facility.id}`).emit('slotUpdate', {
+            slotId: ticket.slot_id,
+            status: 'FREE',
+        });
+    }
 
     res.status(200).json({ status: 'success', data: result });
 });

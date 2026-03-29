@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, ActivityIndicator, Alert, Switch } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, ActivityIndicator, Alert, Switch, Animated } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { get, post, put } from '../../../../services/api';
@@ -7,18 +7,27 @@ import { colors } from '../../../../constants/colors';
 import { Card } from '../../../../components/ui/Card';
 import { SlotGrid } from '../../../../components/SlotGrid';
 import { ParkingFacility, ParkingSlot, Booking } from '../../../../types';
+import { useLiveSlots } from '../../../../hooks/useLiveSlots';
+import { useSocket } from '../../../../hooks/useSocket';
 
 type TabType = 'overview' | 'slots' | 'bookings' | 'pricing';
 
 export default function FacilityManagement() {
-  const { id } = useLocalSearchParams();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [facility, setFacility] = useState<ParkingFacility | null>(null);
-  const [slots, setSlots] = useState<ParkingSlot[]>([]);
+  const [initialSlots, setInitialSlots] = useState<ParkingSlot[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  
+  const { slots: liveSlots, isConnected, highlightedSlotId } = useLiveSlots(id || '', initialSlots);
+  const { socket } = useSocket();
+
+  // Booking notification state
+  const [notification, setNotification] = useState<string | null>(null);
+  const slideAnim = useRef(new Animated.Value(-100)).current;
 
   const fetchData = async () => {
     setLoading(true);
@@ -26,7 +35,7 @@ export default function FacilityManagement() {
       const res = await get(`/provider/facilities/${id}`);
       if (res.data?.data) {
         setFacility(res.data.data.facility);
-        setSlots(res.data.data.slots || []);
+        setInitialSlots(res.data.data.slots || []);
         setBookings(res.data.data.activeBookings || []);
       }
     } catch (error) {
@@ -40,6 +49,54 @@ export default function FacilityManagement() {
   useEffect(() => {
     fetchData();
   }, [id]);
+
+  useEffect(() => {
+    if (!socket || !id) return;
+
+    const onSlotUpdated = (payload: { slotId: string, status: string, facilityId: string }) => {
+      if (payload.facilityId === id && payload.status === 'OCCUPIED') {
+        const slot = liveSlots.find(s => s.id === payload.slotId);
+        if (slot) {
+          showNotification(`Slot ${slot.slotNumber} just got booked!`);
+          // Refresh bookings list to show the new one
+          fetchBookings();
+        }
+      }
+    };
+
+    socket.on('slot_updated', onSlotUpdated);
+    return () => {
+      socket.off('slot_updated', onSlotUpdated);
+    };
+  }, [socket, id, liveSlots]);
+
+  const fetchBookings = async () => {
+    try {
+      const res = await get(`/provider/facilities/${id}`);
+      if (res.data?.data) {
+        setBookings(res.data.data.activeBookings || []);
+      }
+    } catch (e) {
+      console.error('Error refreshing bookings', e);
+    }
+  };
+
+  const showNotification = (message: string) => {
+    setNotification(message);
+    Animated.sequence([
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.delay(3000),
+      Animated.timing(slideAnim, {
+        toValue: -100,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+    ]).start(() => setNotification(null));
+  };
 
   const handleToggleStatus = async () => {
     if (!facility) return;
@@ -132,12 +189,12 @@ export default function FacilityManagement() {
   );
 
   const renderSlots = () => {
-    const freeSlots = slots.filter(s => s.status === 'free').length;
+    const freeSlots = liveSlots.filter(s => s.status === 'free').length;
     return (
       <View style={styles.tabContent}>
         <View style={styles.slotStats}>
           <View style={styles.slotStatItem}>
-            <Text style={styles.slotStatValue}>{slots.length}</Text>
+            <Text style={styles.slotStatValue}>{liveSlots.length}</Text>
             <Text style={styles.slotStatLabel}>Total</Text>
           </View>
           <View style={styles.slotStatItem}>
@@ -145,14 +202,15 @@ export default function FacilityManagement() {
             <Text style={styles.slotStatLabel}>Available</Text>
           </View>
           <View style={styles.slotStatItem}>
-            <Text style={[styles.slotStatValue, { color: colors.danger }]}>{slots.length - freeSlots}</Text>
+            <Text style={[styles.slotStatValue, { color: colors.danger }]}>{liveSlots.length - freeSlots}</Text>
             <Text style={styles.slotStatLabel}>Occupied</Text>
           </View>
         </View>
         <SlotGrid 
-          slots={slots} 
+          slots={liveSlots} 
           onSlotPress={(slot: ParkingSlot) => Alert.alert('Slot Details', `Slot ${slot.slotNumber}\nType: ${slot.vehicleType.toUpperCase()}\nStatus: ${slot.status.toUpperCase()}`)}
           selectedSlotId={null}
+          highlightedSlotId={highlightedSlotId}
         />
       </View>
     );
@@ -249,6 +307,19 @@ export default function FacilityManagement() {
         {activeTab === 'slots' && renderSlots()}
         {activeTab === 'bookings' && renderBookings()}
         {activeTab === 'pricing' && renderPricing()}
+      </View>
+
+      {notification && (
+        <Animated.View style={[styles.notification, { transform: [{ translateY: slideAnim }] }]}>
+          <View style={styles.notificationContent}>
+            <Ionicons name="notifications" size={20} color={colors.surface} />
+            <Text style={styles.notificationText}>{notification}</Text>
+          </View>
+        </Animated.View>
+      )}
+
+      <View style={[styles.statusBadgeGlobal, { backgroundColor: isConnected ? colors.success : colors.textMuted }]}>
+        <Text style={styles.statusBadgeTextGlobal}>{isConnected ? 'LIVE' : 'OFFLINE'}</Text>
       </View>
     </View>
   );
@@ -497,5 +568,49 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginTop: 12,
     fontStyle: 'italic',
+  },
+  notification: {
+    position: 'absolute',
+    top: 60,
+    left: 16,
+    right: 16,
+    zIndex: 1000,
+  },
+  notificationContent: {
+    backgroundColor: colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    gap: 12,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  notificationText: {
+    color: colors.surface,
+    fontWeight: 'bold',
+    fontSize: 14,
+    flex: 1,
+  },
+  statusBadgeGlobal: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
+  statusBadgeTextGlobal: {
+    color: colors.surface,
+    fontSize: 10,
+    fontWeight: 'bold',
   },
 });

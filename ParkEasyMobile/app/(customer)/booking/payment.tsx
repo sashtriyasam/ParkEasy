@@ -38,7 +38,7 @@ export default function PaymentScreen() {
     );
   }
 
-  const handlePaymentSuccess = async () => {
+  const handleProceedToPayment = async () => {
     setLoading(true);
     try {
       const payload = {
@@ -47,20 +47,25 @@ export default function PaymentScreen() {
         vehicle_number: vehicleNumber,
         vehicle_type: vehicleType,
         payment_method: selectedPaymentMethod || 'upi',
+        status: 'PENDING' // Ensure backend supports initial pending state
       };
 
       const res = await post('/bookings', payload);
-      const ticketId = res.data.data.id;
+      const booking = res.data.data;
       
-      setCreatedTicket(ticketId);
-      router.replace('/(customer)/booking/success');
+      setCreatedTicket(booking.id);
+      setShowPaymentSheet(true);
       
     } catch (e: any) {
-      console.error('Booking Error', e);
-      showToast(e.response?.data?.message || 'There was an error creating your booking.', 'error');
+      console.error('Booking Creation Error', e);
+      showToast(e.response?.data?.message || 'Failed to initialize booking.', 'error');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePaymentSuccess = () => {
+    router.replace('/(customer)/booking/success');
   };
 
   const costPerHour = selectedSlot.pricePerHour || 0; // Assume slot has pricePerHour
@@ -123,12 +128,13 @@ export default function PaymentScreen() {
         onSuccess={handlePaymentSuccess}
         amount={costPerHour}
         facilityName={facilityName || ''}
+        bookingId={useBookingFlowStore.getState().createdTicketId || ''}
       />
 
       <View style={styles.footer}>
         <Button 
           label="Proceed to Payment" 
-          onPress={() => setShowPaymentSheet(true)} 
+          onPress={handleProceedToPayment} 
           loading={loading}
         />
       </View>

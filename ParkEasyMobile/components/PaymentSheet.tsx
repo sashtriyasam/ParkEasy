@@ -13,6 +13,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../constants/colors';
 import { Button } from './ui/Button';
+import RazorpayCheckout from 'react-native-razorpay';
+import { post } from '../services/api';
+import { useAuthStore } from '../store/authStore';
 
 const { height } = Dimensions.get('window');
 
@@ -22,6 +25,7 @@ interface PaymentSheetProps {
   onSuccess: () => void;
   amount: number;
   facilityName: string;
+  bookingId: string;
 }
 
 type PaymentMethod = 'upi' | 'card' | 'wallet';
@@ -31,11 +35,13 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
   onClose, 
   onSuccess, 
   amount,
-  facilityName 
+  facilityName,
+  bookingId
 }) => {
   const [step, setStep] = useState<'selection' | 'processing' | 'success'>('selection');
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('upi');
   const slideAnim = useState(new Animated.Value(height))[0];
+  const { user } = useAuthStore();
 
   useEffect(() => {
     if (visible) {
@@ -55,17 +61,63 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
     }
   }, [visible]);
 
-  const handlePayment = () => {
+  const handlePayment = async () => {
     setStep('processing');
-    // Simulate payment processing delay
-    setTimeout(() => {
-      setStep('success');
-      // Final delay before closing and calling success callback
-      setTimeout(() => {
-        onSuccess();
-        onClose();
-      }, 1500);
-    }, 2000);
+    try {
+      // 1. Create order on backend
+      const orderRes = await post('/payments/create-order', {
+        bookingId,
+        amount
+      });
+
+      if (!orderRes.data?.success) {
+        throw new Error(orderRes.data?.message || 'Failed to create payment order');
+      }
+
+      const orderData = orderRes.data.data;
+
+      // 2. Open Razorpay Checkout
+      const options = {
+        description: `Booking at ${facilityName}`,
+        image: 'https://i.imgur.com/39YbR3X.png', // ParkEasy Logo
+        currency: orderData.currency,
+        key: process.env.EXPO_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_demo',
+        amount: orderData.amount,
+        name: 'ParkEasy',
+        order_id: orderData.orderId,
+        prefill: {
+          email: user?.email || '',
+          contact: user?.phone || '',
+          name: user?.name || ''
+        },
+        theme: { color: colors.primary }
+      };
+
+      const data = await RazorpayCheckout.open(options);
+      
+      // 3. Verify payment on backend
+      const verifyRes = await post('/payments/verify', {
+        razorpay_order_id: data.razorpay_order_id,
+        razorpay_payment_id: data.razorpay_payment_id,
+        razorpay_signature: data.razorpay_signature,
+        bookingId
+      });
+
+      if (verifyRes.data?.success) {
+        setStep('success');
+        setTimeout(() => {
+          onSuccess();
+          onClose();
+        }, 1500);
+      } else {
+        throw new Error('Payment verification failed');
+      }
+    } catch (error: any) {
+      console.error('Payment Error:', error);
+      setStep('selection');
+      // In a real app, we'd show a toast or alert here
+      alert(error.description || error.message || 'Payment Failed');
+    }
   };
 
   const renderMethod = (id: PaymentMethod, title: string, icon: any, subtitle: string) => {

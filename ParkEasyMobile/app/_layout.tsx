@@ -6,6 +6,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useAuthStore } from '../store/authStore';
 import { ToastContainer } from '../components/Toast';
 import { useOTAUpdate } from '../hooks/useOTAUpdate';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -45,6 +46,7 @@ export default function RootLayout() {
   }, []);
 
   useOTAUpdate();
+  usePushNotifications();
 
   useEffect(() => {
     if (isInitialized) {

@@ -153,10 +153,29 @@ const switchRole = asyncHandler(async (req, res, next) => {
     });
 });
 
+const updatePushToken = asyncHandler(async (req, res, next) => {
+    const { push_token } = req.body;
+
+    if (!push_token) {
+        return next(new AppError('Push token is required', 400));
+    }
+
+    await prisma.user.update({
+        where: { id: req.user.id },
+        data: { push_token },
+    });
+
+    res.status(200).json({
+        status: 'success',
+        message: 'Push token updated successfully',
+    });
+});
+
 module.exports = {
     register,
     login,
     getMe,
     refresh,
     switchRole,
+    updatePushToken,
 };

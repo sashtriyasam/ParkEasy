@@ -9,6 +9,7 @@ import { Button } from '../../../components/ui/Button';
 import { colors } from '../../../constants/colors';
 import { ParkingFacility, ParkingSlot } from '../../../types';
 import { useBookingFlowStore } from '../../../store/bookingFlowStore';
+import { useLiveSlots } from '../../../hooks/useLiveSlots';
 
 const { width } = Dimensions.get('window');
 
@@ -17,10 +18,12 @@ export default function FacilityDetailsScreen() {
   const router = useRouter();
   
   const [facility, setFacilityData] = useState<ParkingFacility | null>(null);
-  const [slots, setSlots] = useState<ParkingSlot[]>([]);
+  const [initialSlots, setInitialSlots] = useState<ParkingSlot[]>([]);
   const [selectedFloor, setSelectedFloor] = useState<number>(1);
   const [selectedSlot, setSelectedSlot] = useState<ParkingSlot | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  const { slots: liveSlots, isConnected, highlightedSlotId } = useLiveSlots(id || '', initialSlots);
   const { setFacility, setSlot } = useBookingFlowStore();
 
   useEffect(() => {
@@ -31,7 +34,7 @@ export default function FacilityDetailsScreen() {
           get(`/parking/facilities/${id}/slots`)
         ]);
         setFacilityData(facRes.data.data);
-        setSlots(slotsRes.data.data);
+        setInitialSlots(slotsRes.data.data);
       } catch (e) {
         console.error('Error fetching facility details', e);
       } finally {
@@ -57,16 +60,24 @@ export default function FacilityDetailsScreen() {
   }
 
   const floors = Array.from({ length: facility.floors }, (_, i) => i + 1);
-  const floorSlots = slots.filter(s => s.floor === selectedFloor);
+  const floorSlots = liveSlots.filter(s => s.floor === selectedFloor);
 
   return (
     <View style={styles.container}>
       <ScrollView>
-        <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false}>
-          {(facility.images?.length ? facility.images : ['https://via.placeholder.com/400x200']).map((img, idx) => (
-            <Image key={idx} source={img} style={styles.image} contentFit="cover" />
-          ))}
-        </ScrollView>
+        <View style={styles.header}>
+          <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false}>
+            {(facility.images?.length ? facility.images : ['https://via.placeholder.com/400x200']).map((img, idx) => (
+              <Image key={idx} source={img} style={styles.image} contentFit="cover" />
+            ))}
+          </ScrollView>
+          <View style={[styles.statusBadge, { backgroundColor: isConnected ? colors.success + '20' : colors.textSecondary + '20' }]}>
+            <View style={[styles.statusDot, { backgroundColor: isConnected ? colors.success : colors.textSecondary }]} />
+            <Text style={[styles.statusText, { color: isConnected ? colors.success : colors.textSecondary }]}>
+              {isConnected ? 'Live' : 'Offline'}
+            </Text>
+          </View>
+        </View>
         
         <View style={styles.content}>
           <Text style={styles.name}>{facility.name}</Text>
@@ -108,6 +119,7 @@ export default function FacilityDetailsScreen() {
                slots={floorSlots} 
                onSlotPress={(slot) => setSelectedSlot(slot)} 
                selectedSlotId={selectedSlot?.id || null} 
+               highlightedSlotId={highlightedSlotId}
              />
           </View>
 
@@ -239,5 +251,28 @@ const styles = StyleSheet.create({
   },
   bookButton: {
     width: 120,
+  },
+  header: {
+    position: 'relative',
+  },
+  statusBadge: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 6,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: 'bold',
   },
 });

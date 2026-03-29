@@ -41,6 +41,19 @@
       "expo-secure-store",
       "expo-font",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow ParkEasy to access your camera to scan QR codes."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#1a73e8"
+        }
+      ],
+      [
         "expo-updates",
         {
           "checkAutomatically": "ON_LOAD",

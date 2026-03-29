@@ -10,9 +10,10 @@ interface ParkingFacilityCardProps {
   facility: ParkingFacility;
   onPress?: () => void;
   distance?: number;
+  style?: any;
 }
 
-export const ParkingFacilityCard: React.FC<ParkingFacilityCardProps> = ({ facility, onPress, distance }) => {
+export const ParkingFacilityCard: React.FC<ParkingFacilityCardProps> = ({ facility, onPress, distance, style }) => {
   const getBadgeColor = (slots: number) => {
     if (slots > 5) return colors.success;
     if (slots > 0) return colors.warning;
@@ -20,7 +21,7 @@ export const ParkingFacilityCard: React.FC<ParkingFacilityCardProps> = ({ facili
   };
 
   return (
-    <Card style={styles.container} onPress={onPress}>
+    <Card style={[styles.container, style]} onPress={onPress}>
       <Image
         source={facility.images?.[0] || 'https://via.placeholder.com/400x200'} 
         style={styles.image}

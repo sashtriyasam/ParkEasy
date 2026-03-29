@@ -35,6 +35,13 @@ export default function CustomerLayout() {
         }}
       />
       <Tabs.Screen
+        name="passes"
+        options={{
+          title: 'Passes',
+          tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? "card" : "card-outline"} size={26} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="tickets"
         options={{
           title: 'Tickets',

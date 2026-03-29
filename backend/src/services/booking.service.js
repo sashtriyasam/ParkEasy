@@ -145,7 +145,49 @@ const confirmBooking = async (slotId, userId, vehicleNumber, vehicleType) => {
     });
 };
 
+const createPendingBooking = async (slotId, userId, vehicleNumber, vehicleType) => {
+    return await prisma.$transaction(async (tx) => {
+        const slot = await tx.parkingSlot.findUnique({
+            where: { id: slotId },
+            include: { floor: true }
+        });
+
+        if (!slot) throw new AppError('Slot not found', 404);
+        if (slot.status === 'OCCUPIED') throw new AppError('Slot is already occupied', 400);
+
+        // Create Ticket in PENDING status
+        const ticket = await tx.ticket.create({
+            data: {
+                customer_id: userId,
+                slot_id: slotId,
+                facility_id: slot.floor.facility_id,
+                vehicle_number: vehicleNumber,
+                vehicle_type: vehicleType,
+                status: 'PENDING_PAYMENT',
+                payment_status: 'PENDING',
+                entry_time: new Date(),
+            }
+        });
+
+        // Slot remains RESERVED (or becomes RESERVED if it was FREE)
+        // We set a slightly longer reservation for the payment window (e.g., 10 mins)
+        const paymentWindow = 10;
+        const expiry = new Date(Date.now() + paymentWindow * 60 * 1000);
+
+        await tx.parkingSlot.update({
+            where: { id: slotId },
+            data: {
+                status: 'RESERVED',
+                reservation_expiry: expiry
+            }
+        });
+
+        return ticket;
+    });
+};
+
 module.exports = {
     reserveSlot,
-    confirmBooking
+    confirmBooking,
+    createPendingBooking
 };

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator, TouchableOpacity, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { get } from '../../services/api';
 import { Card } from '../../components/ui/Card';
@@ -7,7 +7,7 @@ import { colors } from '../../constants/colors';
 import { EmptyState } from '../../components/EmptyState';
 import { useAuthStore } from '../../store/authStore';
 import { useRouter } from 'expo-router';
-import { TouchableOpacity } from 'react-native';
+import { useSocket } from '../../hooks/useSocket';
 
 export default function ProviderDashboard() {
   const [stats, setStats] = useState({
@@ -21,8 +21,12 @@ export default function ProviderDashboard() {
   const [recentBookings, setRecentBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  
+  const { socket, isConnected } = useSocket();
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const res = await get('/provider/dashboard');
       if (res.data?.data) {
@@ -33,6 +37,7 @@ export default function ProviderDashboard() {
           totalRevenue: res.data.data.stats.totalRevenue,
         });
         setRecentBookings(res.data.data.recentBookings || []);
+        setLastUpdate(new Date());
       }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -40,11 +45,31 @@ export default function ProviderDashboard() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchDashboardData();
-  }, []);
+  }, [fetchDashboardData]);
+
+  // Real-time updates handler
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleUpdate = () => {
+      // Small delay to ensure DB is updated before we fetch fresh stats
+      setTimeout(() => {
+        fetchDashboardData(false);
+      }, 500);
+    };
+
+    socket.on('slot_updated', handleUpdate);
+    socket.on('booking_status_updated', handleUpdate);
+
+    return () => {
+      socket.off('slot_updated', handleUpdate);
+      socket.off('booking_status_updated', handleUpdate);
+    };
+  }, [socket, fetchDashboardData]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -72,8 +97,23 @@ export default function ProviderDashboard() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       <View style={styles.header}>
-        <Text style={styles.greeting}>{getGreeting()}, {user?.name?.split(' ')[0] || 'Partner'}</Text>
-        <Text style={styles.title}>Operation Center</Text>
+        <View style={styles.headerTop}>
+          <View>
+            <Text style={styles.greeting}>{getGreeting()}, {user?.name?.split(' ')[0] || 'Partner'}</Text>
+            <Text style={styles.title}>Operation Center</Text>
+          </View>
+          <View style={[styles.connectionBadge, { backgroundColor: isConnected ? colors.success + '20' : colors.textMuted + '20' }]}>
+            <View style={[styles.connectionDot, { backgroundColor: isConnected ? colors.success : colors.textMuted }]} />
+            <Text style={[styles.connectionText, { color: isConnected ? colors.success : colors.textMuted }]}>
+              {isConnected ? 'Live' : 'Offline'}
+            </Text>
+          </View>
+        </View>
+        {lastUpdate && (
+          <Text style={styles.lastUpdate}>
+            Last updated: {lastUpdate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+          </Text>
+        )}
       </View>
 
       <View style={styles.statsGrid}>
@@ -194,6 +234,34 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  connectionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 6,
+  },
+  connectionDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  connectionText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    textTransform: 'uppercase',
+  },
+  lastUpdate: {
+    fontSize: 11,
+    color: colors.textMuted,
+    marginTop: 8,
   },
   title: {
     fontSize: 24,

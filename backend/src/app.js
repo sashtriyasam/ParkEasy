@@ -4,6 +4,17 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const authRoutes = require('./routes/auth.routes');
+const rateLimit = require('express-rate-limit');
+
+// Rate limiter
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 requests per windowMs
+    message: 'Too many requests from this IP, please try again after 15 minutes',
+    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
+
 const parkingRoutes = require('./routes/parking.routes');
 const bookingRoutes = require('./routes/booking.routes');
 const providerRoutes = require('./routes/provider.routes');
@@ -45,13 +56,17 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // Routes
+app.use('/api', limiter);
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/parking', parkingRoutes);
 app.use('/api/v1/bookings', bookingRoutes);
 app.use('/api/v1/provider', providerRoutes);
 app.use('/api/v1/customer', customerRoutes);
 
+const paymentRoutes = require('./routes/payment.routes');
 const verificationRoutes = require('./routes/verificationRoutes');
+
+app.use('/api/v1/payments', paymentRoutes);
 app.use('/api/v1/verification', verificationRoutes);
 
 // Documentation
