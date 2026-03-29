@@ -1,76 +1,65 @@
-# ParkEasy Mobile — EAS Cheat Sheet
+# ParkEasy Mobile — Production Operations Guide
 
-This guide contains the most common commands for managing the ParkEasy mobile application using Expo Application Services (EAS).
+This guide contains the exact terminal commands and operational logic for managing the ParkEasy production lifecycle.
 
 ---
 
-## 🏗 Builds & Deployment
+## 🏗 Builds & Distribution (EAS Build)
 
-### Android APK (Development)
-Build a debug/test APK to install directly on devices.
-```bash
-eas build --platform android --profile development
-```
-
-### Android APK (Direct Distribution/Internal)
-Build a high-fidelity production APK to share directly with stakeholders.
+### a. Building your first APK (Internal Testing)
+Generate a distributable Android APK to share directly with stakeholders.
 ```bash
 eas build --platform android --profile production
 ```
-
-> [!NOTE]
-> We have configured the `production` profile in `eas.json` to produce an **APK** instead of an AAB for easier direct installation during this phase.
+> [!TIP]
+> Use the `production` profile to get a signed, production-ready APK. For the Google Play Store, swap to the `release` profile to generate an AAB.
 
 ---
 
-## 🚀 OTA Updates (Over-The-Air)
+## 🚀 OTA Updates (EAS Update)
 
-OTA updates allow you to push code changes (JS/Assets) directly to existing installed APKs without requiring users to download a new file.
-
-### 📝 1. Prepare and Publish
-This triggers a high-fidelity update to the production channel.
+### b. Publishing an OTA Update
+Push JavaScript and asset changes directly to installed apps instantly.
 ```bash
-eas update --auto --branch production --message "Description of changes"
+eas update --branch production --message "Fix: Slot grid legend alignment"
 ```
 
-### 🔍 2. Verify Updates
-Check the status of your published updates.
+### c. Publishing to a Specific Channel
+Target different user groups (e.g., internal testers vs. end-users).
+```bash
+# Push to Preview channel
+eas update --channel preview --message "New UI polish pass"
+
+# Push to Production channel
+eas update --channel production --message "v1.0.1 minor fixes"
+```
+
+### d. Checking Update Status
+View all published updates and see which groups are on which version.
 ```bash
 eas update:list
 ```
 
-### 🔄 3. Force Update (Optional)
-If you need to strictly verify the latest version on a device:
-1. Close the app completely.
-2. Re-open it twice (once to download, once to apply).
-
----
-
-## 🔐 Credentials & Secrets
-
-### View Project Secrets
+### e. Rolling Back an Update
+If a recent update causes issues, you can instantly revert users to a stable state.
 ```bash
-eas secret:list
-```
-
-### Add a New Secret (e.g., API URL)
-```bash
-eas secret:create --name EXPO_PUBLIC_API_URL --value "https://your-api.com/api/v1"
+# Revert the 'production' branch to a specific stable update group
+eas update:rollback --branch production
 ```
 
 ---
 
-## 🛠 Troubleshooting
+## 🚦 Deployment Strategy (When to build vs. OTA)
 
-### Clear Cache and Rebuild
-```bash
-eas build --platform android --profile preview --clear-cache
-```
+### f. Decision Matrix
 
-### Check Built App Logs (Development Only)
-```bash
-npx expo start --dev-client
-```
+| Change Type | Update Method | Example |
+| :--- | :--- | :--- |
+| **JS/Logic** | ✨ **OTA (Instant)** | Fixed a calculation error in the Earnings dashboard. |
+| **UI/Styles** | ✨ **OTA (Instant)** | Changed primary color or fixed card shadow elevation. |
+| **Permissions** | 🏗 **EAS Build (New APK)** | Adding Camera access for a new QR scanner feature. |
+| **Native Modules**| 🏗 **EAS Build (New APK)** | Installing a new package like `expo-location` for the first time. |
+| **App Icons** | 🏗 **EAS Build (New APK)** | Changing the adaptive icon on the Android home screen. |
 
 ---
 

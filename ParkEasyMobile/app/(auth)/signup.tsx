@@ -88,15 +88,17 @@ export default function SignupScreen() {
             <TouchableOpacity 
               style={[styles.roleButton, role === 'customer' && styles.roleButtonActive]} 
               onPress={() => setRole('customer')}
+              activeOpacity={0.8}
             >
-              <Ionicons name="person" size={20} color={role === 'customer' ? '#fff' : colors.textSecondary} />
+              <Ionicons name={role === 'customer' ? "person" : "person-outline"} size={18} color={role === 'customer' ? '#fff' : colors.textSecondary} />
               <Text style={[styles.roleText, role === 'customer' && styles.roleTextActive]}>Driver</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={[styles.roleButton, role === 'provider' && styles.roleButtonActive]} 
               onPress={() => setRole('provider')}
+              activeOpacity={0.8}
             >
-              <Ionicons name="business" size={20} color={role === 'provider' ? '#fff' : colors.textSecondary} />
+              <Ionicons name={role === 'provider' ? "business" : "business-outline"} size={18} color={role === 'provider' ? '#fff' : colors.textSecondary} />
               <Text style={[styles.roleText, role === 'provider' && styles.roleTextActive]}>Provider</Text>
             </TouchableOpacity>
           </View>
@@ -208,22 +210,29 @@ const styles = StyleSheet.create({
   roleContainer: {
     flexDirection: 'row',
     backgroundColor: colors.background,
-    padding: 4,
-    borderRadius: 12,
+    padding: 6,
+    borderRadius: 16,
     marginBottom: 24,
-    gap: 4,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   roleButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
     gap: 8,
   },
   roleButtonActive: {
     backgroundColor: colors.primary,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   roleText: {
     fontSize: 14,

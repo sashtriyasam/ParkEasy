@@ -22,11 +22,9 @@
       "package": "com.sashtriyasam.parkeasy",
       "permissions": [
         "CAMERA",
-        "RECORD_AUDIO",
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE"
+        "READ_MEDIA_IMAGES"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -45,7 +43,8 @@
       [
         "expo-updates",
         {
-          "checkOnLaunch": "ALWAYS",
+          "checkAutomatically": "ON_LOAD",
+          "fallbackToCacheTimeout": 3000,
           "enabled": true
         }
       ]
