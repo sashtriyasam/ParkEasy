@@ -21,7 +21,7 @@ export default function ProviderTabLayout() {
       }}
     >
       <Tabs.Screen
-        name="dashboard"
+        name="index"
         options={{
           title: 'Dashboard',
           tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? "stats-chart" : "stats-chart-outline"} size={24} color={color} />,

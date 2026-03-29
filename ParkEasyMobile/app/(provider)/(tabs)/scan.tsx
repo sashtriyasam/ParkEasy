@@ -62,7 +62,7 @@ export default function QRScannerScreen() {
         // Fallback to raw data
       }
 
-      const response = await post('/bookings/end', { ticket_id: ticketId });
+      const response = await post('/bookings/checkout', { ticket_id: ticketId });
 
       if (response.status === 200 || response.data?.status === 'success') {
         Alert.alert(
