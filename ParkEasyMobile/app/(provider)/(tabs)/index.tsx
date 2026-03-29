@@ -31,10 +31,10 @@ export default function ProviderDashboard() {
       const res = await get('/provider/dashboard');
       if (res.data?.data) {
         setStats({
-          activeFacilities: res.data.data.stats.totalFacilities,
-          activeBookings: res.data.data.stats.activeBookings,
-          todayRevenue: res.data.data.stats.todayRevenue,
-          totalRevenue: res.data.data.stats.totalRevenue,
+          activeFacilities: res.data.data.stats.totalFacilities || 0,
+          activeBookings: res.data.data.stats.activeBookings || 0,
+          todayRevenue: res.data.data.stats.todayRevenue || 0,
+          totalRevenue: res.data.data.stats.totalRevenue || 0,
         });
         setRecentBookings(res.data.data.recentBookings || []);
         setLastUpdate(new Date());
@@ -189,7 +189,7 @@ export default function ProviderDashboard() {
               <View style={styles.bookingInfo}>
                 <View>
                   <Text style={styles.customerName}>{booking.customer?.full_name || 'Guest User'}</Text>
-                  <Text style={styles.facilityName}>{booking.facility?.name} • {booking.slot?.slot_number}</Text>
+                  <Text style={styles.facilityName}>{booking.facility?.name} • {booking.slot?.slot_number || booking.slot_id?.substring(0,8)}</Text>
                   <Text style={styles.bookingTime}>
                     {new Date(booking.entry_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </Text>

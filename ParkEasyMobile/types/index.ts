@@ -6,9 +6,11 @@ export type UserRole = 'customer' | 'provider';
 
 export interface User {
   id: string;
-  name: string;
+  name?: string;
+  full_name?: string;
   email: string;
-  phone: string;
+  phone?: string;
+  phone_number?: string;
   role: UserRole;
   avatar?: string;
 }

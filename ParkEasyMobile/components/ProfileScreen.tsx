@@ -10,7 +10,9 @@ import { colors } from '../constants/colors';
 export function ProfileScreen() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
-  const role = user?.role || 'CUSTOMER';
+  const userName = user?.full_name || user?.name || 'User';
+  const userEmail = user?.email || 'No email provided';
+  const role = user?.role?.toUpperCase() || 'CUSTOMER';
 
   const handleLogout = async () => {
     Alert.alert('Logout', 'Are you sure you want to log out?', [
@@ -31,11 +33,11 @@ export function ProfileScreen() {
       <View style={styles.header}>
         <View style={styles.avatarContainer}>
           <Text style={styles.avatarText}>
-            {user?.name?.charAt(0).toUpperCase() || 'U'}
+            {userName.charAt(0).toUpperCase()}
           </Text>
         </View>
-        <Text style={styles.name}>{user?.name || 'User'}</Text>
-        <Text style={styles.email}>{user?.email || 'No email provided'}</Text>
+        <Text style={styles.name}>{userName}</Text>
+        <Text style={styles.email}>{userEmail}</Text>
         <View style={styles.roleBadge}>
           <Text style={styles.roleText}>{role}</Text>
         </View>

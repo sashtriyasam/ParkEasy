@@ -55,7 +55,7 @@ export default function ProviderFacilities() {
       <View style={styles.cardBody}>
         <View style={styles.statRow}>
           <Ionicons name="car-outline" size={16} color={colors.textSecondary} />
-          <Text style={styles.statText}>0 / {item.total_slots} Slots</Text>
+          <Text style={styles.statText}>0 / {item.total_slots || 0} Slots</Text>
         </View>
         <View style={styles.statRow}>
           <Ionicons name="star" size={16} color={colors.warning} />

@@ -14,9 +14,9 @@ export default function PersonalInfoScreen() {
   const [loading, setLoading] = useState(false);
 
   const [formData, setFormData] = useState({
-    name: user?.name || '',
+    name: user?.full_name || user?.name || '',
     email: user?.email || '',
-    phone: user?.phone || '',
+    phone: user?.phone_number || user?.phone || '',
   });
 
   const handleUpdate = async () => {

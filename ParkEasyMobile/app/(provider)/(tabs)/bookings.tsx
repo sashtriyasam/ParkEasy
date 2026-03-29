@@ -45,15 +45,15 @@ export default function ProviderBookings() {
       <View style={styles.cardBody}>
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Vehicle:</Text>
-          <Text style={styles.detailValue}>{item.vehicleNumber}</Text>
+          <Text style={styles.detailValue}>{item.vehicle_number || item.vehicleNumber}</Text>
         </View>
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Slot:</Text>
-          <Text style={styles.detailValue}>{item.parkingSlot?.slotNumber}</Text>
+          <Text style={styles.detailValue}>{item.slot?.slot_number || item.parkingSlot?.slotNumber || 'Unknown'}</Text>
         </View>
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Start Time:</Text>
-          <Text style={styles.detailValue}>{new Date(item.startTime).toLocaleString()}</Text>
+          <Text style={styles.detailLabel}>Entry Time:</Text>
+          <Text style={styles.detailValue}>{item.entry_time ? new Date(item.entry_time).toLocaleString() : 'N/A'}</Text>
         </View>
       </View>
     </Card>

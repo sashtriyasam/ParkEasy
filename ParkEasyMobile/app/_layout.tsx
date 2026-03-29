@@ -25,11 +25,14 @@ function InitialLayout() {
     if (!user && !inAuthGroup) {
       router.replace('/(auth)/login');
     } else if (user) {
+      const role = user.role?.toLowerCase();
+      // Only redirect if we're in the auth group or at the root segment
       if (inAuthGroup || !segments[0]) {
-        if (user.role === 'customer') {
+        if (role === 'customer') {
           router.replace('/(customer)');
-        } else if (user.role === 'provider') {
-          router.replace('/(provider)');
+        } else if (role === 'provider') {
+          // Explicitly redirect to the tabs index
+          router.replace('/(provider)/(tabs)');
         }
       }
     }
