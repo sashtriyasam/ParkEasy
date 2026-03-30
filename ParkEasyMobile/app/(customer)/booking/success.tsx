@@ -21,7 +21,7 @@ import Animated, {
 
 export default function BookingSuccessScreen() {
   const router = useRouter();
-  const { createdTicketId, facilityName, vehicleNumber, resetBookingFlow } = useBookingFlowStore();
+  const { created_ticket_id, facility_name, vehicle_number, resetBookingFlow } = useBookingFlowStore();
   const qrRef = useRef<View>(null);
 
   const [status, requestPermission] = MediaLibrary.usePermissions();
@@ -50,7 +50,7 @@ export default function BookingSuccessScreen() {
     transform: [{ scale: iconScale.value }],
   }));
 
-  if (!createdTicketId) {
+  if (!created_ticket_id) {
     return (
       <View style={styles.center}>
         <Text>No ticket found. Return to home.</Text>
@@ -67,7 +67,7 @@ export default function BookingSuccessScreen() {
   const handleShare = async () => {
     try {
       const result = await Share.share({
-        message: `My parking ticket for ${facilityName} (Vehicle: ${vehicleNumber}). Ticket ID: ${createdTicketId}`,
+        message: `My parking ticket for ${facility_name} (Vehicle: ${vehicle_number}). Ticket ID: ${created_ticket_id}`,
       });
     } catch (error: any) {
       Alert.alert('Share Failed', error.message);
@@ -114,17 +114,17 @@ export default function BookingSuccessScreen() {
         <View ref={qrRef}collapsable={false} style={styles.ticketCardWrapper}>
           <Animated.View style={[styles.glowContainer, animatedGlowStyle]}>
             <Card style={styles.ticketCard}>
-              <Text style={styles.ticketFacility}>{facilityName}</Text>
+              <Text style={styles.ticketFacility}>{facility_name}</Text>
               <View style={styles.qrContainer}>
                 <QRCode
-                  value={createdTicketId}
+                  value={created_ticket_id}
                   size={160}
                   color={colors.textPrimary}
                   backgroundColor="white"
                 />
               </View>
-              <Text style={styles.ticketId}>ID: {createdTicketId}</Text>
-              <Text style={styles.ticketVehicle}>{vehicleNumber}</Text>
+              <Text style={styles.ticketId}>ID: {created_ticket_id}</Text>
+              <Text style={styles.ticketVehicle}>{vehicle_number}</Text>
             </Card>
           </Animated.View>
         </View>

@@ -15,21 +15,21 @@ export default function PaymentScreen() {
   const router = useRouter();
   const { showToast } = useToast();
   const { 
-    facilityId, 
-    facilityName, 
-    selectedSlot, 
-    vehicleNumber, 
-    vehicleType,
+    facility_id, 
+    facility_name, 
+    selected_slot, 
+    vehicle_number, 
+    vehicle_type,
     setPaymentMethod,
     setCreatedTicket,
-    selectedPaymentMethod
+    selected_payment_method
   } = useBookingFlowStore();
 
   const [loading, setLoading] = useState(false);
   const [showPaymentSheet, setShowPaymentSheet] = useState(false);
 
   // Fallbacks if user navigated directly without data
-  if (!facilityId || !selectedSlot) {
+  if (!facility_id || !selected_slot) {
     return (
       <View style={styles.center}>
         <Text>Missing booking data. Please start again.</Text>
@@ -42,11 +42,11 @@ export default function PaymentScreen() {
     setLoading(true);
     try {
       const payload = {
-        facility_id: facilityId,
-        slot_id: selectedSlot.id,
-        vehicle_number: vehicleNumber,
-        vehicle_type: vehicleType,
-        payment_method: selectedPaymentMethod || 'upi',
+        facility_id,
+        slot_id: selected_slot.id,
+        vehicle_number,
+        vehicle_type,
+        payment_method: selected_payment_method || 'upi',
         status: 'PENDING' // Ensure backend supports initial pending state
       };
 
@@ -68,7 +68,7 @@ export default function PaymentScreen() {
     router.replace('/(customer)/booking/success');
   };
 
-  const costPerHour = selectedSlot.pricePerHour || 0; // Assume slot has pricePerHour
+  const costPerHour = selected_slot.price_per_hour || 0; 
 
   return (
     <View style={styles.container}>
@@ -80,16 +80,16 @@ export default function PaymentScreen() {
       <Text style={styles.title}>Review & Pay</Text>
 
       <Card style={styles.summaryCard}>
-        <Text style={styles.facilityName}>{facilityName || 'Parking Facility'}</Text>
+        <Text style={styles.facilityName}>{facility_name || 'Parking Facility'}</Text>
         <View style={styles.summaryRow}>
           <View>
             <Text style={styles.label}>Slot</Text>
-            <Text style={styles.value}>{selectedSlot.slotNumber}</Text>
+            <Text style={styles.value}>{selected_slot.slot_number}</Text>
           </View>
           <View>
             <Text style={styles.label}>Vehicle</Text>
-            <Text style={styles.value}>{vehicleNumber}</Text>
-            <Text style={styles.subValue}>{(vehicleType || '').toUpperCase()}</Text>
+            <Text style={styles.value}>{vehicle_number}</Text>
+            <Text style={styles.subValue}>{(vehicle_type || '').toUpperCase()}</Text>
           </View>
         </View>
       </Card>
@@ -127,11 +127,11 @@ export default function PaymentScreen() {
         onClose={() => setShowPaymentSheet(false)}
         onSuccess={handlePaymentSuccess}
         amount={costPerHour}
-        facilityName={facilityName || ''}
-        bookingId={useBookingFlowStore.getState().createdTicketId || ''}
-        slotId={selectedSlot.id}
-        vehicleNumber={vehicleNumber || ''}
-        vehicleType={vehicleType || 'car'}
+        facilityName={facility_name || ''}
+        bookingId={useBookingFlowStore.getState().created_ticket_id || ''}
+        slotId={selected_slot.id}
+        vehicleNumber={vehicle_number || ''}
+        vehicleType={vehicle_type || 'car'}
       />
 
       <View style={styles.footer}>

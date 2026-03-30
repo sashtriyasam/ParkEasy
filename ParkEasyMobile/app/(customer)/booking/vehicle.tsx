@@ -11,13 +11,13 @@ import { Vehicle, VehicleType } from '../../../types';
 
 export default function SelectVehicleScreen() {
   const router = useRouter();
-  const { setVehicle, selectedVehicle, vehicleNumber, vehicleType: storeVehicleType } = useBookingFlowStore();
+  const { setVehicle, vehicle_number, vehicle_type: storeVehicleType } = useBookingFlowStore();
   
   const [savedVehicles, setSavedVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   
-  const [manualNumber, setManualNumber] = useState(vehicleNumber);
-  const [manualType, setManualType] = useState<VehicleType | null>(storeVehicleType);
+  const [manualNumber, setManualNumber] = useState(vehicle_number || '');
+  const [manualType, setManualType] = useState<VehicleType | null>(storeVehicleType || null);
 
   const vehicleTypes: { label: string; value: VehicleType; icon: keyof typeof Ionicons.glyphMap }[] = [
     { label: 'Bike', value: 'bike', icon: 'bicycle' },
@@ -41,7 +41,7 @@ export default function SelectVehicleScreen() {
   }, []);
 
   const handleSavedSelect = (vehicle: Vehicle) => {
-    setVehicle(vehicle, vehicle.vehicleNumber, vehicle.vehicleType);
+    setVehicle(vehicle, vehicle.vehicle_number, vehicle.vehicle_type);
     router.push('/(customer)/booking/payment');
   };
 
@@ -71,18 +71,18 @@ export default function SelectVehicleScreen() {
           {savedVehicles.map(vehicle => (
             <Card 
               key={vehicle.id} 
-              style={[styles.vehicleCard, selectedVehicle?.id === vehicle.id && styles.selectedCard]}
+              style={styles.vehicleCard}
               onPress={() => handleSavedSelect(vehicle)}
             >
               <View style={styles.vehicleIconContainer}>
                 <Ionicons 
-                  name={vehicleTypes.find(t => t.value === vehicle.vehicleType)?.icon || 'car'} 
+                  name={vehicleTypes.find(t => t.value === vehicle.vehicle_type)?.icon || 'car'} 
                   size={24} 
-                  color={VEHICLE_TYPE_COLORS[vehicle.vehicleType] || colors.primary} 
+                  color={VEHICLE_TYPE_COLORS[vehicle.vehicle_type as keyof typeof VEHICLE_TYPE_COLORS] || colors.primary} 
                 />
               </View>
               <View style={styles.vehicleInfo}>
-                <Text style={styles.vehicleNumber}>{vehicle.vehicleNumber}</Text>
+                <Text style={styles.vehicleNumber}>{vehicle.vehicle_number}</Text>
                 {vehicle.nickname && <Text style={styles.vehicleNickname}>{vehicle.nickname}</Text>}
               </View>
               <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />

@@ -57,7 +57,7 @@ export default function FacilityManagement() {
       if (payload.facilityId === id && payload.status === 'OCCUPIED') {
         const slot = liveSlots.find(s => s.id === payload.slotId);
         if (slot) {
-          showNotification(`Slot ${slot.slotNumber} just got booked!`);
+          showNotification(`Slot ${slot.slot_number} just got booked!`);
           // Refresh bookings list to show the new one
           fetchBookings();
         }
@@ -208,7 +208,7 @@ export default function FacilityManagement() {
         </View>
         <SlotGrid 
           slots={liveSlots} 
-          onSlotPress={(slot: ParkingSlot) => Alert.alert('Slot Details', `Slot ${slot.slotNumber}\nType: ${slot.vehicleType.toUpperCase()}\nStatus: ${slot.status.toUpperCase()}`)}
+          onSlotPress={(slot: ParkingSlot) => Alert.alert('Slot Details', `Slot ${slot.slot_number}\nType: ${slot.vehicle_type.toUpperCase()}\nStatus: ${slot.status.toUpperCase()}`)}
           selectedSlotId={null}
           highlightedSlotId={highlightedSlotId}
         />
@@ -225,8 +225,8 @@ export default function FacilityManagement() {
         <Card style={styles.bookingCard}>
           <View style={styles.bookingHeader}>
             <View>
-              <Text style={styles.vehicleNumber}>{item.vehicleNumber}</Text>
-              <Text style={styles.slotInfo}>Slot: {item.slotId} • {item.vehicleType.toUpperCase()}</Text>
+              <Text style={styles.vehicleNumber}>{item.vehicle_number}</Text>
+              <Text style={styles.slotInfo}>Slot: {item.slot_id} • {item.vehicle_type.toUpperCase()}</Text>
             </View>
             <View style={styles.statusBadge}>
               <Text style={styles.statusBadgeText}>{item.status}</Text>
@@ -236,7 +236,7 @@ export default function FacilityManagement() {
           <View style={styles.bookingFooter}>
             <View>
               <Text style={styles.timeLabel}>Entry Time</Text>
-              <Text style={styles.timeValue}>{new Date(item.entryTime).toLocaleTimeString()}</Text>
+              <Text style={styles.timeValue}>{new Date(item.entry_time).toLocaleTimeString()}</Text>
             </View>
             <TouchableOpacity 
               style={styles.exitButton}
