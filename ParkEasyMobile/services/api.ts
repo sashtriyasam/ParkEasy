@@ -19,10 +19,26 @@ apiClient.interceptors.request.use(
 );
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Railway sometimes returns a 200 with an "Application not found" HTML/Text body if misconfigured
+    if (typeof response.data === 'string' && response.data.includes('Application not found')) {
+      const error = new Error(`Infrastructure Error: Railway 404 at ${response.config.url}`);
+      console.error(error.message);
+      return Promise.reject(error);
+    }
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config;
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    
+    // Log infrastructure errors specifically
+    if (!error.response) {
+      console.error(`Network or Infrastructure Error: ${error.message} [URL: ${originalRequest?.url}]`);
+    } else if (error.response.status === 404) {
+      console.warn(`API 404: Not found at ${originalRequest?.url}`);
+    }
+
+    if (error.response?.status === 401 && !originalRequest?._retry) {
       originalRequest._retry = true;
       try {
         const refreshToken = await SecureStore.getItemAsync('refreshToken');
@@ -30,14 +46,15 @@ apiClient.interceptors.response.use(
           const res = await axios.post(`${API_URL}/auth/refresh`, { refreshToken });
           await SecureStore.setItemAsync('accessToken', res.data.accessToken);
           await SecureStore.setItemAsync('refreshToken', res.data.refreshToken);
-          originalRequest.headers.Authorization = `Bearer ${res.data.accessToken}`;
+          if (originalRequest?.headers) {
+            originalRequest.headers.Authorization = `Bearer ${res.data.accessToken}`;
+          }
           return apiClient(originalRequest);
         }
       } catch (refreshError) {
         await SecureStore.deleteItemAsync('accessToken');
         await SecureStore.deleteItemAsync('refreshToken');
         await SecureStore.deleteItemAsync('user');
-        // Handle logout implicitly via store listener or event
       }
     }
     return Promise.reject(error);

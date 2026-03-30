@@ -46,9 +46,24 @@ const createFacility = asyncHandler(async (req, res, next) => {
 const getMyFacilities = asyncHandler(async (req, res) => {
     const facilities = await prisma.parkingFacility.findMany({
         where: { provider_id: req.user.id },
-        include: { floors: true },
+        include: { 
+            floors: {
+                include: {
+                    _count: {
+                        select: { slots: true }
+                    }
+                }
+            } 
+        },
     });
-    res.status(200).json({ status: 'success', results: facilities.length, data: facilities });
+
+    // Map to include a flattened total_slots count for the dashboard gauge
+    const formattedFacilities = facilities.map(f => ({
+        ...f,
+        total_slots: f.floors.reduce((acc, floor) => acc + (floor._count?.slots || 0), 0)
+    }));
+
+    res.status(200).json({ status: 'success', results: formattedFacilities.length, data: formattedFacilities });
 });
 
 const getAllFacilities = asyncHandler(async (req, res) => {

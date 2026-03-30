@@ -55,22 +55,22 @@ if (process.env.NODE_ENV === 'development') {
     app.use(morgan('dev'));
 }
 
-// Routes
-app.use('/api', limiter);
-app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/parking', parkingRoutes);
-app.use('/api/v1/bookings', bookingRoutes);
-app.use('/api/v1/provider', providerRoutes);
-app.use('/api/v1/customer', customerRoutes);
+// Versioned Routes
+const apiRoutes = express.Router();
+apiRoutes.use('/auth', authRoutes);
+apiRoutes.use('/parking', parkingRoutes);
+apiRoutes.use('/bookings', bookingRoutes);
+apiRoutes.use('/provider', providerRoutes);
+apiRoutes.use('/customer', customerRoutes);
+apiRoutes.use('/payments', paymentRoutes);
+apiRoutes.use('/verification', verificationRoutes);
 
-const paymentRoutes = require('./routes/payment.routes');
-const verificationRoutes = require('./routes/verificationRoutes');
+// Mount with and without v1 for maximum stability
+app.use('/api/v1', apiRoutes);
+app.use('/api', apiRoutes);
 
-app.use('/api/v1/payments', paymentRoutes);
-app.use('/api/v1/verification', verificationRoutes);
-
-// Documentation
-setupSwagger(app);
+// Global version info
+app.get('/api/version', (req, res) => res.status(200).json({ status: 'success', version, environment: process.env.NODE_ENV }));
 
 // Health Check
 app.get('/health', async (req, res) => {

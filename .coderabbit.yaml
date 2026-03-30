@@ -1,0 +1,37 @@
+# CodeRabbit Configuration
+language: "en-US"
+early_access: false
+reviews:
+  profile: "chill"
+  request_reviews_from_completions: true
+  auto_review:
+    enabled: true
+    draft: false
+  path_filters:
+    - "!**/node_modules/**"
+    - "!**/dist/**"
+    - "!**/*.lock"
+    - "!**/*.json"
+    - "!**/*.md"
+    - "!ParkEasyMobile/assets/**"
+
+# Global instructions for the reviewer
+instructions: |
+  We are building a production parking management system called ParkEasy.
+  Key architectural rules:
+  1. Use snake_case for all API responses and database fields (matching Prisma schema).
+  2. Ensure all Prisma queries are optimized and handle potential 'null' or 'undefined' cases gracefully.
+  3. All React Native components should use the centralized 'colors.ts' and 'ui' components.
+  4. Follow the project's standard 'AppError' usage in the backend.
+
+# Specific instructions for file paths
+file_path_instructions:
+  - path: "backend/src/controllers/*.js"
+    instructions: "Pay close attention to error handling and ensure all responses follow the {status: 'success', data: ...} format."
+  - path: "backend/prisma/schema.prisma"
+    instructions: "Ensure no camelCase fields are added. All fields must be @map()ed to snake_case if they aren't already."
+  - path: "ParkEasyMobile/app/**/*.tsx"
+    instructions: "Ensure proper use of 'expo-router' and that all property access on Booking, Vehicle, and Slot objects uses snake_case."
+
+chat:
+  enabled: true
