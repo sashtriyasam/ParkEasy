@@ -14,6 +14,14 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import MapView, { Marker, Callout, PROVIDER_GOOGLE } from 'react-native-maps';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withRepeat, 
+  withTiming, 
+  withSequence,
+  interpolate
+} from 'react-native-reanimated';
 import { ParkingFacilityCard } from '../../components/ParkingFacilityCard';
 import { get } from '../../services/api';
 import { colors } from '../../constants/colors';
@@ -28,6 +36,24 @@ export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
   const mapRef = useRef<MapView>(null);
+  
+  // Animation for pulsing markers
+  const pulse = useSharedValue(1);
+  useEffect(() => {
+    pulse.value = withRepeat(
+      withSequence(
+        withTiming(1.15, { duration: 1000 }),
+        withTiming(1, { duration: 1000 })
+      ),
+      -1,
+      true
+    );
+  }, []);
+
+  const animatedMarkerStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulse.value }],
+    opacity: interpolate(pulse.value, [1, 1.15], [1, 0.8]),
+  }));
   
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [refreshing, setRefreshing] = useState(false);
@@ -136,13 +162,13 @@ export default function HomeScreen() {
             }}
             onPress={() => {}}
           >
-            <View style={styles.customMarker}>
+            <Animated.View style={[styles.customMarker, animatedMarkerStyle]}>
               <View style={styles.markerPriceContainer}>
                 <Text style={styles.markerCurrency}>₹</Text>
                 <Text style={styles.markerPrice}>{Math.round(Number(facility.pricing_rules[0]?.hourly_rate || 0))}</Text>
               </View>
               <View style={styles.markerArrow} />
-            </View>
+            </Animated.View>
             <Callout 
               tooltip 
               onPress={() => router.push(`/(customer)/facility/${facility.id}`)}
@@ -342,14 +368,16 @@ const styles = StyleSheet.create({
   searchBarFloating: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    padding: 14,
-    borderRadius: 16,
+    backgroundColor: colors.glassSurface,
+    padding: 16,
+    borderRadius: 20,
     width: width - 48,
+    borderWidth: 1,
+    borderColor: colors.glassBorder,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
     elevation: 8,
     gap: 12,
   },

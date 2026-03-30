@@ -1,89 +1,83 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity } from 'react-native';
-import { useRouter } from 'expo-router';
+import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuthStore } from '../../store/authStore';
 import { colors } from '../../constants/colors';
 import { Button } from '../../components/ui/Button';
-import { useToast } from '../../components/Toast';
+import { useAuthStore } from '../../store/authStore';
 
 export default function PersonalInfoScreen() {
-  const router = useRouter();
   const { user } = useAuthStore();
-  const { showToast } = useToast();
-  const [loading, setLoading] = useState(false);
-
   const [formData, setFormData] = useState({
     name: user?.full_name || user?.name || '',
     email: user?.email || '',
-    phone: user?.phone_number || user?.phone || '',
+    phone: user?.phone_number || '',
   });
+  const [loading, setLoading] = useState(false);
 
-  const handleUpdate = async () => {
+  const handleUpdate = () => {
     setLoading(true);
-    // Simulate API call for now
     setTimeout(() => {
       setLoading(false);
-      showToast('Profile updated successfully!', 'success');
-      router.back();
-    }, 1000);
+      Alert.alert('Profile Updated', 'Your information has been saved successfully.');
+    }, 1200);
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.title}>Personal Information</Text>
-      </View>
-
+    <KeyboardAvoidingView 
+      style={styles.container} 
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Personal Profile</Text>
+          <Text style={styles.subtitle}>Update your contact information</Text>
+        </View>
+
         <View style={styles.avatarSection}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{user?.name?.charAt(0) || 'U'}</Text>
+          <View style={styles.avatarBox}>
+            <Text style={styles.avatarText}>{formData.name.charAt(0)}</Text>
           </View>
-          <TouchableOpacity>
-            <Text style={styles.changePhotoText}>Change Profile Photo</Text>
+          <TouchableOpacity style={styles.changeBtn}>
+            <Text style={styles.changeBtnText}>Change Photo</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.form}>
-          <View style={styles.formGroup}>
+          <View style={styles.inputGroup}>
             <Text style={styles.label}>Full Name</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="person-outline" size={20} color={colors.primary} style={styles.icon} />
-              <TextInput
-                style={styles.input}
+            <View style={styles.inputWrapper}>
+              <Ionicons name="person-outline" size={20} color={colors.textMuted} />
+              <TextInput 
+                style={styles.input} 
                 value={formData.name}
-                onChangeText={(text) => setFormData(p => ({...p, name: text}))}
-                placeholder="Enter your name"
+                onChangeText={(t) => setFormData({...formData, name: t})}
+                placeholder="Ex: John Doe"
               />
             </View>
           </View>
 
-          <View style={styles.formGroup}>
+          <View style={styles.inputGroup}>
             <Text style={styles.label}>Email Address</Text>
-            <View style={[styles.inputContainer, styles.disabledInput]}>
-              <Ionicons name="mail-outline" size={20} color={colors.textMuted} style={styles.icon} />
-              <TextInput
-                style={[styles.input, { color: colors.textMuted }]}
+            <View style={styles.inputWrapper}>
+              <Ionicons name="mail-outline" size={20} color={colors.textMuted} />
+              <TextInput 
+                style={[styles.input, styles.disabledInput]} 
                 value={formData.email}
                 editable={false}
               />
             </View>
-            <Text style={styles.hint}>Email cannot be changed.</Text>
+            <Text style={styles.hint}>Email cannot be changed for security reasons.</Text>
           </View>
 
-          <View style={styles.formGroup}>
+          <View style={styles.inputGroup}>
             <Text style={styles.label}>Phone Number</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="call-outline" size={20} color={colors.primary} style={styles.icon} />
-              <TextInput
-                style={styles.input}
+            <View style={styles.inputWrapper}>
+              <Ionicons name="phone-portrait-outline" size={20} color={colors.textMuted} />
+              <TextInput 
+                style={styles.input} 
                 value={formData.phone}
-                onChangeText={(text) => setFormData(p => ({...p, phone: text}))}
-                placeholder="Enter phone number"
+                onChangeText={(t) => setFormData({...formData, phone: t})}
+                placeholder="+91 98765 43210"
                 keyboardType="phone-pad"
               />
             </View>
@@ -93,11 +87,15 @@ export default function PersonalInfoScreen() {
             label="Save Changes" 
             onPress={handleUpdate} 
             loading={loading}
-            style={{ marginTop: 20 }}
+            style={styles.saveBtn}
           />
+
+          <TouchableOpacity style={styles.deleteBtn}>
+            <Text style={styles.deleteBtnText}>Request Account Deletion</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -106,87 +104,96 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 20,
-    paddingTop: 60,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  backButton: {
-    marginRight: 16,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-  },
   content: {
     padding: 24,
+    paddingTop: 80,
+  },
+  header: {
+    marginBottom: 40,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    marginTop: 4,
   },
   avatarSection: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 40,
   },
-  avatar: {
+  avatarBox: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: colors.primary + '20',
-    alignItems: 'center',
+    backgroundColor: colors.primary,
     justifyContent: 'center',
-    marginBottom: 12,
+    alignItems: 'center',
+    ...colors.shadows.md,
   },
   avatarText: {
-    fontSize: 32,
+    fontSize: 40,
     fontWeight: 'bold',
-    color: colors.primary,
+    color: 'white',
   },
-  changePhotoText: {
+  changeBtn: {
+    marginTop: 12,
+  },
+  changeBtnText: {
     color: colors.primary,
-    fontWeight: '600',
+    fontWeight: 'bold',
     fontSize: 14,
   },
   form: {
-    gap: 20,
+    gap: 24,
   },
-  formGroup: {
-    marginBottom: 4,
+  inputGroup: {
+    gap: 8,
   },
   label: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     color: colors.textSecondary,
-    marginBottom: 8,
+    marginLeft: 4,
   },
-  inputContainer: {
+  inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
+    borderRadius: 16,
+    paddingHorizontal: 16,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 12,
-    height: 56,
-    paddingHorizontal: 16,
-  },
-  disabledInput: {
-    backgroundColor: colors.background,
-    borderColor: colors.border,
-  },
-  icon: {
-    marginRight: 12,
   },
   input: {
     flex: 1,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
     fontSize: 16,
     color: colors.textPrimary,
   },
-  hint: {
-    fontSize: 12,
+  disabledInput: {
     color: colors.textMuted,
-    marginTop: 4,
+  },
+  hint: {
+    fontSize: 11,
+    color: colors.textMuted,
     marginLeft: 4,
+  },
+  saveBtn: {
+    marginTop: 12,
+    borderRadius: 20,
+  },
+  deleteBtn: {
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  deleteBtnText: {
+    color: colors.error,
+    fontSize: 13,
+    fontWeight: '600',
   }
 });

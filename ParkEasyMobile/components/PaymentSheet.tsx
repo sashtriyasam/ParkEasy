@@ -26,6 +26,9 @@ interface PaymentSheetProps {
   amount: number;
   facilityName: string;
   bookingId: string;
+  slotId: string;
+  vehicleNumber: string;
+  vehicleType: string;
 }
 
 type PaymentMethod = 'upi' | 'card' | 'wallet';
@@ -36,7 +39,10 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
   onSuccess, 
   amount,
   facilityName,
-  bookingId
+  bookingId,
+  slotId,
+  vehicleNumber,
+  vehicleType
 }) => {
   const [step, setStep] = useState<'selection' | 'processing' | 'success'>('selection');
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('upi');
@@ -66,7 +72,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
     try {
       // 1. Create order on backend
       const orderRes = await post('/payments/create-order', {
-        bookingId,
+        slot_id: slotId,
         amount
       });
 
@@ -81,7 +87,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
         description: `Booking at ${facilityName}`,
         image: 'https://i.imgur.com/39YbR3X.png', // ParkEasy Logo
         currency: orderData.currency,
-        key: process.env.EXPO_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_demo',
+        key: orderData.key || process.env.EXPO_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_demo',
         amount: orderData.amount,
         name: 'ParkEasy',
         order_id: orderData.orderId,
@@ -95,12 +101,14 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
 
       const data = await RazorpayCheckout.open(options);
       
-      // 3. Verify payment on backend
+      // 3. Verify payment on backend (Phase 7A Alignment)
       const verifyRes = await post('/payments/verify', {
         razorpay_order_id: data.razorpay_order_id,
         razorpay_payment_id: data.razorpay_payment_id,
         razorpay_signature: data.razorpay_signature,
-        bookingId
+        slot_id: slotId,
+        vehicle_number: vehicleNumber,
+        vehicle_type: vehicleType
       });
 
       if (verifyRes.data?.success) {

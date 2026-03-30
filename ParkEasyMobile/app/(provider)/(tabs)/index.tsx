@@ -8,37 +8,115 @@ import { EmptyState } from '../../../components/EmptyState';
 import { useAuthStore } from '../../../store/authStore';
 import { useRouter } from 'expo-router';
 import { useSocket } from '../../../hooks/useSocket';
+import Svg, { Path, Circle, G, Text as SvgText } from 'react-native-svg';
+
+const OccupancyGauge = ({ value, total }: { value: number, total: number }) => {
+  const percentage = total > 0 ? (value / total) * 100 : 0;
+  const radius = 80;
+  const strokeWidth = 15;
+  const center = 100;
+  const circumference = 2 * Math.PI * radius;
+  const halfCircumference = circumference / 2;
+  const strokeDashoffset = halfCircumference - (percentage / 100) * halfCircumference;
+
+  return (
+    <View style={gaugeStyles.container}>
+      <Svg width="200" height="120" viewBox="0 0 200 120">
+        <G rotation="-180" origin="100, 100">
+          {/* Background Arc */}
+          <Path
+            d={`M ${center - radius} ${center} A ${radius} ${radius} 0 0 1 ${center + radius} ${center}`}
+            stroke={colors.border}
+            strokeWidth={strokeWidth}
+            fill="none"
+            strokeLinecap="round"
+          />
+          {/* Progress Arc */}
+          <Path
+            d={`M ${center - radius} ${center} A ${radius} ${radius} 0 0 1 ${center + radius} ${center}`}
+            stroke={percentage > 85 ? colors.danger : percentage > 60 ? colors.warning : colors.success}
+            strokeWidth={strokeWidth}
+            fill="none"
+            strokeDasharray={`${halfCircumference} ${halfCircumference}`}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+          />
+        </G>
+        <SvgText
+          x="100"
+          y="90"
+          textAnchor="middle"
+          fontSize="24"
+          fontWeight="bold"
+          fill={colors.textPrimary}
+        >
+          {Math.round(percentage)}%
+        </SvgText>
+        <SvgText
+          x="100"
+          y="110"
+          textAnchor="middle"
+          fontSize="12"
+          fill={colors.textSecondary}
+        >
+          OCCUPANCY
+        </SvgText>
+      </Svg>
+    </View>
+  );
+};
+
+const gaugeStyles = StyleSheet.create({
+  container: {
+    alignItems: 'center',
+    marginVertical: 10,
+  }
+});
 
 export default function ProviderDashboard() {
+  const { user } = useAuthStore();
+  const router = useRouter();
   const [stats, setStats] = useState({
     activeFacilities: 0,
     activeBookings: 0,
     todayRevenue: 0,
     totalRevenue: 0,
   });
-  const { user } = useAuthStore();
-  const router = useRouter();
   const [recentBookings, setRecentBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  
-  const { socket, isConnected } = useSocket();
+  const [facilities, setFacilities] = useState<any[]>([]);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
   const fetchDashboardData = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
-      const res = await get('/provider/dashboard');
-      if (res.data?.data) {
+      const [statsRes, facilitiesRes] = await Promise.all([
+        get('/provider/dashboard/stats'),
+        get('/provider/facilities')
+      ]);
+
+      if (statsRes.data?.data) {
+        const d = statsRes.data.data;
         setStats({
-          activeFacilities: res.data.data.stats.totalFacilities || 0,
-          activeBookings: res.data.data.stats.activeBookings || 0,
-          todayRevenue: res.data.data.stats.todayRevenue || 0,
-          totalRevenue: res.data.data.stats.totalRevenue || 0,
+          activeFacilities: facilitiesRes.data?.data?.length || 0,
+          activeBookings: d.active_bookings || 0,
+          todayRevenue: d.revenue?.today || 0,
+          totalRevenue: d.revenue?.month || 0,
         });
-        setRecentBookings(res.data.data.recentBookings || []);
         setLastUpdate(new Date());
       }
+      
+      if (facilitiesRes.data?.data) {
+        setFacilities(facilitiesRes.data.data);
+      }
+
+      // Fetch recent bookings separately if needed or if it comes from dashboard
+      const recentRes = await get('/provider/bookings?limit=5');
+      if (recentRes.data?.data) {
+        setRecentBookings(recentRes.data.data);
+      }
+
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -51,25 +129,34 @@ export default function ProviderDashboard() {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
-  // Real-time updates handler
-  useEffect(() => {
-    if (!socket) return;
+  // Real-time updates handler (Phase 6B)
+  const { socket, isConnected, joinFacility } = useSocket();
 
-    const handleUpdate = () => {
-      // Small delay to ensure DB is updated before we fetch fresh stats
-      setTimeout(() => {
-        fetchDashboardData(false);
-      }, 500);
+  useEffect(() => {
+    if (!socket || facilities.length === 0) return;
+
+    // Join all facility rooms
+    facilities.forEach(f => joinFacility(f.id));
+
+    const handleSlotUpdate = (payload: { status: string, facilityId: string }) => {
+      setStats(prev => {
+        let newActiveBookings = prev.activeBookings;
+        if (payload.status === 'OCCUPIED') {
+          newActiveBookings += 1;
+        } else if (payload.status === 'FREE') {
+          newActiveBookings = Math.max(0, newActiveBookings - 1);
+        }
+        return { ...prev, activeBookings: newActiveBookings };
+      });
+      setLastUpdate(new Date());
     };
 
-    socket.on('slot_updated', handleUpdate);
-    socket.on('booking_status_updated', handleUpdate);
+    socket.on('slot_updated', handleSlotUpdate);
 
     return () => {
-      socket.off('slot_updated', handleUpdate);
-      socket.off('booking_status_updated', handleUpdate);
+      socket.off('slot_updated', handleSlotUpdate);
     };
-  }, [socket, fetchDashboardData]);
+  }, [socket, facilities, joinFacility]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -115,9 +202,31 @@ export default function ProviderDashboard() {
           </Text>
         )}
       </View>
+      
+      <View style={styles.gaugeSection}>
+        <Card style={styles.gaugeCard}>
+          <OccupancyGauge 
+            value={stats.activeBookings} 
+            total={facilities.reduce((acc, f) => acc + (f.total_slots || 0), 0) || 100} 
+          />
+          <View style={styles.gaugeStats}>
+            <View style={styles.gaugeStatItem}>
+              <Text style={styles.gaugeStatValue}>{stats.activeBookings}</Text>
+              <Text style={styles.gaugeStatLabel}>Occupied</Text>
+            </View>
+            <View style={styles.gaugeStatDivider} />
+            <View style={styles.gaugeStatItem}>
+              <Text style={styles.gaugeStatValue}>
+                {Math.max(0, (facilities.reduce((acc, f) => acc + (f.total_slots || 0), 0) || 100) - stats.activeBookings)}
+              </Text>
+              <Text style={styles.gaugeStatLabel}>Available</Text>
+            </View>
+          </View>
+        </Card>
+      </View>
 
       <View style={styles.statsGrid}>
-        <Card style={styles.statCard}>
+        <Card style={[styles.statCard, styles.glassCard]}>
           <View style={[styles.iconContainer, { backgroundColor: colors.primaryLight }]}>
             <Ionicons name="business" size={24} color={colors.primary} />
           </View>
@@ -125,7 +234,7 @@ export default function ProviderDashboard() {
           <Text style={styles.statLabel}>Facilities</Text>
         </Card>
 
-        <Card style={styles.statCard}>
+        <Card style={[styles.statCard, styles.glassCard]}>
           <View style={[styles.iconContainer, { backgroundColor: colors.success + '20' }]}>
             <Ionicons name="cash" size={24} color={colors.success} />
           </View>
@@ -338,6 +447,48 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textSecondary,
     textAlign: 'center',
+  },
+  gaugeSection: {
+    paddingHorizontal: 16,
+    marginTop: -20,
+  },
+  gaugeCard: {
+    padding: 20,
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    ...colors.shadows.md,
+  },
+  gaugeStats: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    marginTop: 10,
+    gap: 24,
+  },
+  gaugeStatItem: {
+    alignItems: 'center',
+  },
+  gaugeStatValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+  },
+  gaugeStatLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  gaugeStatDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: colors.border,
+  },
+  glassCard: {
+    backgroundColor: colors.glassSurface,
+    borderColor: colors.glassBorder,
+    borderWidth: 1,
+    ...colors.shadows.sm,
   },
   sectionHeader: {
     paddingHorizontal: 24,

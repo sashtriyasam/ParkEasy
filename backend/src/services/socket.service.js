@@ -4,21 +4,12 @@ let io;
 const initSocket = (server) => {
     io = new Server(server, {
         cors: {
-            origin: (origin, callback) => {
-                // Mobile apps (React Native) send no origin — always allow
-                if (!origin) return callback(null, true);
-                // Web: check against allowed origins
-                const allowed = [
-                    process.env.FRONTEND_URL,
-                    'http://localhost:5173',
-                    'http://localhost:3000',
-                ].filter(Boolean);
-                if (allowed.includes(origin)) return callback(null, true);
-                return callback(new Error('Not allowed by CORS'));
-            },
+            origin: true, // Allow all origins for the socket to handle RN apps properly
             methods: ['GET', 'POST'],
             credentials: true
-        }
+        },
+        allowEIO3: true, // Support for older clients if needed
+        transports: ['websocket', 'polling']
     });
 
     io.on('connection', (socket) => {

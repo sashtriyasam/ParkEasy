@@ -60,7 +60,7 @@ export default function FacilityDetailsScreen() {
   }
 
   const floors = Array.from({ length: facility.floors }, (_, i) => i + 1);
-  const floorSlots = liveSlots.filter(s => s.floor === selectedFloor);
+  const floorSlots = liveSlots.filter(s => s.floor_id === selectedFloor.toString() || s.floor === selectedFloor);
 
   return (
     <View style={styles.container}>
@@ -129,7 +129,7 @@ export default function FacilityDetailsScreen() {
       <View style={styles.bottomBar}>
         <View style={styles.selectedInfo}>
           <Text style={styles.selectedLabel}>Selected Slot</Text>
-          <Text style={styles.selectedValue}>{selectedSlot ? `${selectedSlot.slotNumber} (Floor ${selectedSlot.floor})` : 'None'}</Text>
+          <Text style={styles.selectedValue}>{selectedSlot ? `${selectedSlot.slot_number} (Floor ${selectedSlot.floor_id || selectedSlot.floor})` : 'None'}</Text>
         </View>
         <Button 
           label="Book Now" 

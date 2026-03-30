@@ -73,7 +73,7 @@ const reserveSlot = async (facilityId, vehicleType, floorId = null, userId) => {
 
             // Notify clients
             emitSlotUpdate(facilityId, {
-                slotId: candidate.id,
+                slot_id: candidate.id,
                 status: 'RESERVED',
                 reservation_expiry: expiryTime
             });
@@ -137,7 +137,7 @@ const confirmBooking = async (slotId, userId, vehicleNumber, vehicleType) => {
 
         // Notify clients
         emitSlotUpdate(updatedSlot.floor.facility_id, {
-            slotId: slotId,
+            slot_id: slotId,
             status: 'OCCUPIED'
         });
 

@@ -22,21 +22,21 @@ export const useLiveSlots = (facilityId: string, initialSlots: ParkingSlot[]) =>
     const onDisconnect = () => setIsConnected(false);
     
     const onSlotUpdated = (payload: { 
-      slotId: string, 
+      slot_id: string, 
       status: ParkingSlot['status'], 
-      facilityId: string 
+      facility_id: string 
     }) => {
-      if (payload.facilityId === facilityId) {
+      if (payload.facility_id === facilityId) {
         setSlots(currentSlots => 
           currentSlots.map(slot => 
-            slot.id === payload.slotId 
+            slot.id === payload.slot_id 
               ? { ...slot, status: payload.status }
               : slot
           )
         );
         
         // Highlight the updated slot
-        setHighlightedSlotId(payload.slotId);
+        setHighlightedSlotId(payload.slot_id);
         setTimeout(() => setHighlightedSlotId(null), 2500);
       }
     };

@@ -52,37 +52,39 @@ export default function PassesScreen() {
     
     return (
       <View style={[styles.passCard, isExpired && styles.passCardExpired]}>
-        <View style={styles.passHeader}>
-          <View style={styles.facilityInfo}>
-            <Text style={styles.facilityName}>{item.facility.name}</Text>
-            <Text style={styles.facilityAddress}>{item.facility.address}</Text>
+        <View style={[styles.passGradientContainer, !isExpired && { backgroundColor: colors.primaryDark }]}>
+          <View style={styles.passHeader}>
+            <View style={styles.facilityInfo}>
+              <Text style={[styles.facilityName, !isExpired && { color: 'white' }]}>{item.facility.name}</Text>
+              <Text style={[styles.facilityAddress, !isExpired && { color: 'rgba(255,255,255,0.7)' }]}>{item.facility.address}</Text>
+            </View>
+            <View style={[styles.statusBadge, isExpired ? styles.statusBadgeExpired : styles.statusBadgeActive]}>
+              <Text style={[styles.statusText, isExpired ? styles.statusTextExpired : styles.statusTextActive]}>
+                {item.status}
+              </Text>
+            </View>
           </View>
-          <View style={[styles.statusBadge, isExpired ? styles.statusBadgeExpired : styles.statusBadgeActive]}>
-            <Text style={[styles.statusText, isExpired ? styles.statusTextExpired : styles.statusTextActive]}>
-              {item.status}
-            </Text>
-          </View>
-        </View>
+          
+          <View style={[styles.divider, !isExpired && { backgroundColor: 'rgba(255,255,255,0.2)' }]} />
 
-        <View style={styles.divider} />
-
-        <View style={styles.passDetails}>
-          <View style={styles.detailItem}>
-            <Ionicons name="car-outline" size={16} color={colors.textSecondary} />
-            <Text style={styles.detailText}>{item.vehicle_type}</Text>
-          </View>
-          <View style={styles.detailItem}>
-            <Ionicons name="calendar-outline" size={16} color={colors.textSecondary} />
-            <Text style={styles.detailText}>
-              {new Date(item.start_date).toLocaleDateString()} - {new Date(item.end_date).toLocaleDateString()}
-            </Text>
+          <View style={styles.passDetails}>
+            <View style={styles.detailItem}>
+              <Ionicons name="car-outline" size={16} color={isExpired ? colors.textSecondary : 'white'} />
+              <Text style={[styles.detailText, !isExpired && { color: 'white' }]}>{item.vehicle_type.toUpperCase()}</Text>
+            </View>
+            <View style={styles.detailItem}>
+              <Ionicons name="calendar-outline" size={16} color={isExpired ? colors.textSecondary : 'white'} />
+              <Text style={[styles.detailText, !isExpired && { color: 'white' }]}>
+                {new Date(item.start_date).toLocaleDateString()} - {new Date(item.end_date).toLocaleDateString()}
+              </Text>
+            </View>
           </View>
         </View>
 
         {!isExpired && (
           <TouchableOpacity style={styles.qrButton}>
             <Ionicons name="qr-code-outline" size={20} color={colors.surface} />
-            <Text style={styles.qrButtonText}>Show Pass QR</Text>
+            <Text style={styles.qrButtonText}>Access Pass</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -137,19 +139,17 @@ const styles = StyleSheet.create({
   },
   passCard: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    borderRadius: 24,
+    marginBottom: 20,
+    overflow: 'hidden',
+    ...colors.shadows.md,
   },
   passCardExpired: {
-    opacity: 0.7,
+    opacity: 0.6,
+  },
+  passGradientContainer: {
+    padding: 20,
+    backgroundColor: colors.background,
   },
   passHeader: {
     flexDirection: 'row',

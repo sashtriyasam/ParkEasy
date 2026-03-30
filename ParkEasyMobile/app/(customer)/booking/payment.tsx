@@ -129,6 +129,9 @@ export default function PaymentScreen() {
         amount={costPerHour}
         facilityName={facilityName || ''}
         bookingId={useBookingFlowStore.getState().createdTicketId || ''}
+        slotId={selectedSlot.id}
+        vehicleNumber={vehicleNumber || ''}
+        vehicleType={vehicleType || 'car'}
       />
 
       <View style={styles.footer}>

@@ -98,10 +98,26 @@ const endBooking = asyncHandler(async (req, res, next) => {
     // Emit socket event for real-time update
     const io = req.app.get('io');
     if (io) {
-        io.to(`facility:${ticket.slot.floor.facility.id}`).emit('slotUpdate', {
+        io.to(`facility_${ticket.slot.floor.facility.id}`).emit('slot_updated', {
             slotId: ticket.slot_id,
             status: 'FREE',
+            facilityId: ticket.slot.floor.facility.id
         });
+    }
+
+    // Phase 9B: Push Notification for Checkout
+    const { sendPushNotification } = require('../utils/pushNotifications');
+    if (req.user.push_token) {
+        sendPushNotification(
+            req.user.push_token,
+            '✅ Checkout Complete',
+            `Total charge: ₹${total_fee}. Thanks for using ParkEasy!`,
+            { 
+                type: 'booking_completed', 
+                ticketId: ticket_id, 
+                amount: total_fee 
+            }
+        ).catch(err => console.error('Notification Error:', err));
     }
 
     res.status(200).json({ status: 'success', data: result });

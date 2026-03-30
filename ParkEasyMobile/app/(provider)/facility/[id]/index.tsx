@@ -89,7 +89,7 @@ export default function FacilityManagement() {
         duration: 500,
         useNativeDriver: true,
       }),
-      Animated.delay(3000),
+      Animated.delay(4000),
       Animated.timing(slideAnim, {
         toValue: -100,
         duration: 500,
@@ -317,6 +317,14 @@ export default function FacilityManagement() {
           </View>
         </Animated.View>
       )}
+
+      <TouchableOpacity 
+        style={styles.scanButton}
+        onPress={() => router.push(`/(provider)/(tabs)/scan?facilityId=${id}`)}
+      >
+        <Ionicons name="qr-code-outline" size={24} color={colors.surface} />
+        <Text style={styles.scanButtonText}>Scan & Checkout</Text>
+      </TouchableOpacity>
 
       <View style={[styles.statusBadgeGlobal, { backgroundColor: isConnected ? colors.success : colors.textMuted }]}>
         <Text style={styles.statusBadgeTextGlobal}>{isConnected ? 'LIVE' : 'OFFLINE'}</Text>
@@ -611,6 +619,29 @@ const styles = StyleSheet.create({
   statusBadgeTextGlobal: {
     color: colors.surface,
     fontSize: 10,
+    fontWeight: 'bold',
+  },
+  scanButton: {
+    position: 'absolute',
+    bottom: 80,
+    left: 24,
+    right: 24,
+    backgroundColor: colors.info,
+    flexDirection: 'row',
+    padding: 16,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+  },
+  scanButtonText: {
+    color: colors.surface,
+    fontSize: 16,
     fontWeight: 'bold',
   },
 });

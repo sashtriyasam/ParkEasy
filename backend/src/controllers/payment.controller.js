@@ -1,38 +1,27 @@
 const razorpayService = require('../services/payment.service');
+const bookingService = require('../services/booking.service');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
-const { emitSlotUpdate } = require('../services/socket.service');
 
 /**
  * Create a Razorpay order for a booking (Ticket)
  */
 exports.createOrder = async (req, res) => {
     try {
-        const { bookingId, amount } = req.body;
+        const { amount, facility_id, slot_id } = req.body;
 
-        if (!bookingId || !amount) {
+        if (!amount || amount <= 0 || amount > 5000) {
             return res.status(400).json({
                 success: false,
-                message: 'Booking ID and amount are required'
-            });
-        }
-
-        // Validate ticket exists and belongs to user
-        const ticket = await prisma.ticket.findUnique({
-            where: { id: bookingId }
-        });
-
-        if (!ticket || ticket.customer_id !== req.user.id) {
-            return res.status(404).json({
-                success: false,
-                message: 'Booking not found'
+                message: 'Invalid amount. Must be between 1 and 5000.'
             });
         }
 
         // Create order in Razorpay
         const order = await razorpayService.createPaymentOrder(amount, 'INR', {
-            bookingId,
-            customerId: req.user.id
+            facility_id,
+            slot_id,
+            customer_id: req.user.id
         });
 
         res.status(200).json({
@@ -40,7 +29,8 @@ exports.createOrder = async (req, res) => {
             data: {
                 orderId: order.id,
                 amount: order.amount,
-                currency: order.currency
+                currency: order.currency,
+                key: process.env.RAZORPAY_KEY_ID
             }
         });
     } catch (error) {
@@ -61,7 +51,9 @@ exports.verifyPayment = async (req, res) => {
             razorpay_order_id, 
             razorpay_payment_id, 
             razorpay_signature,
-            bookingId 
+            slot_id,
+            vehicle_number,
+            vehicle_type 
         } = req.body;
 
         const isValid = razorpayService.verifyPaymentSignature(
@@ -73,59 +65,32 @@ exports.verifyPayment = async (req, res) => {
         if (!isValid) {
             return res.status(400).json({
                 success: false,
-                message: 'Invalid payment signature'
+                message: 'Payment verification failed'
             });
         }
 
-        // Update ticket status and slot status within a transaction
-        const result = await prisma.$transaction(async (tx) => {
-            const ticket = await tx.ticket.update({
-                where: { id: bookingId },
-                data: {
-                    status: 'ACTIVE',
-                    payment_status: 'PAID',
-                    payment_id: razorpay_payment_id,
-                    payment_method: 'RAZORPAY'
-                },
-                include: {
-                    slot: true
-                }
-            });
+        // Phase 7A: Confirm booking via service
+        const ticket = await bookingService.confirmBooking(
+            slot_id, 
+            req.user.id, 
+            vehicle_number, 
+            vehicle_type
+        );
 
-            // Update associated slot to OCCUPIED
-            await tx.parkingSlot.update({
-                where: { id: ticket.slot_id },
-                data: { 
-                    status: 'OCCUPIED',
-                    reservation_expiry: null
-                }
-            });
-
-            return ticket;
+        // Update ticket with payment details
+        const updatedTicket = await prisma.ticket.update({
+            where: { id: ticket.id },
+            data: {
+                payment_id: razorpay_payment_id,
+                payment_status: 'PAID',
+                payment_method: 'CARD' // or 'UPI' depending on selection, defaulting to CARD/Razorpay
+            }
         });
-
-        // Trigger socket update for real-time occupancy
-        emitSlotUpdate(result.facility_id, {
-            slotId: result.slot_id,
-            status: 'OCCUPIED'
-        });
-
-        const { sendPushNotification } = require('../utils/pushNotifications');
-
-        // Send push notification to user
-        if (req.user.push_token) {
-            sendPushNotification(
-                req.user.push_token,
-                'Payment Received!',
-                `Payment verified for booking at ${result.slot.floor.facility.name}. Your spot is ready.`,
-                { ticketId: result.id, status: 'PAID' }
-            ).catch(err => logger.error('Push Notification Error:', err));
-        }
 
         res.status(200).json({
             success: true,
-            message: 'Payment verified successfully',
-            data: result
+            message: 'Payment verified and booking confirmed',
+            data: updatedTicket
         });
     } catch (error) {
         logger.error('Error verifying payment:', error);

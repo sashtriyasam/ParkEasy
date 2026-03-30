@@ -1,6 +1,6 @@
 export type VehicleType = 'bike' | 'scooter' | 'car' | 'truck';
-export type SlotStatus = 'free' | 'occupied' | 'reserved' | 'maintenance';
-export type BookingStatus = 'active' | 'completed' | 'cancelled';
+export type SlotStatus = 'FREE' | 'OCCUPIED' | 'RESERVED' | 'MAINTENANCE' | 'free' | 'occupied' | 'reserved' | 'maintenance';
+export type BookingStatus = 'ACTIVE' | 'COMPLETED' | 'CANCELLED' | 'active' | 'completed' | 'cancelled';
 export type PaymentMethod = 'upi' | 'card' | 'pay-at-exit';
 export type UserRole = 'customer' | 'provider';
 
@@ -46,18 +46,41 @@ export interface ParkingFacility {
   pricing_rules: PricingRule[];
 }
 export interface ParkingSlot {
-  id: string; facilityId: string; slotNumber: string; floor: number;
-  vehicleType: VehicleType; status: SlotStatus; pricePerHour: number;
+  id: string; 
+  facility_id: string; 
+  slot_number: string; 
+  floor_id?: string;
+  floor?: any;
+  vehicle_type: VehicleType; 
+  status: SlotStatus; 
+  price_per_hour?: number;
 }
 export interface Booking {
-  id: string; customerId: string; facilityId: string; slotId: string;
-  vehicleNumber: string; vehicleType: VehicleType; entryTime: string;
-  exitTime?: string; duration: number; amount: number;
-  paymentMethod: PaymentMethod; status: BookingStatus; qrCode: string;
+  id: string;
+  customer_id: string;
+  facility_id: string;
+  slot_id: string;
+  vehicle_number: string;
+  vehicle_type: VehicleType;
+  entry_time: string;
+  exit_time?: string;
+  duration?: number;
+  total_fee?: number;
+  base_fee?: number;
+  payment_method?: PaymentMethod;
+  payment_status?: string;
+  status: string;
+  qr_code?: string;
+  slot?: ParkingSlot;
+  facility?: ParkingFacility;
 }
 export interface Vehicle {
-  id: string; userId: string; vehicleNumber: string; vehicleType: VehicleType;
-  nickname?: string; isDefault: boolean;
+  id: string; 
+  user_id: string; 
+  vehicle_number: string; 
+  vehicle_type: VehicleType;
+  nickname?: string; 
+  is_default: boolean;
 }
 export interface MonthlyPass {
   id: string; userId: string; facilityId: string; vehicleId: string;
@@ -66,8 +89,9 @@ export interface MonthlyPass {
 export interface AuthResponse {
   status: string;
   data: {
-    user: { id: string; email: string; full_name: string; phone_number?: string; role: UserRole; created_at?: string; };
-    accessToken: string; refreshToken: string;
+    user: User;
+    accessToken: string; 
+    refreshToken: string;
   };
 }
 export interface ApiResponse<T> {

@@ -2,15 +2,15 @@ import { create } from 'zustand';
 import { ParkingSlot, Vehicle, VehicleType, PaymentMethod } from '../types';
 
 interface BookingFlowState {
-  facilityId: string | null;
-  facilityName: string | null;
-  selectedSlot: ParkingSlot | null;
-  selectedVehicle: Vehicle | null;
-  vehicleNumber: string;
-  vehicleType: VehicleType | null;
-  selectedPaymentMethod: PaymentMethod | null;
-  estimatedCost: number | null;
-  createdTicketId: string | null;
+  facility_id: string | null;
+  facility_name: string | null;
+  selected_slot: ParkingSlot | null;
+  selected_vehicle: Vehicle | null;
+  vehicle_number: string;
+  vehicle_type: VehicleType | null;
+  selected_payment_method: PaymentMethod | null;
+  estimated_cost: number | null;
+  created_ticket_id: string | null;
   
   setFacility: (id: string, name: string) => void;
   setSlot: (slot: ParkingSlot) => void;
@@ -22,25 +22,25 @@ interface BookingFlowState {
 }
 
 const initialState = {
-  facilityId: null,
-  facilityName: null,
-  selectedSlot: null,
-  selectedVehicle: null,
-  vehicleNumber: '',
-  vehicleType: null,
-  selectedPaymentMethod: null,
-  estimatedCost: null,
-  createdTicketId: null,
+  facility_id: null,
+  facility_name: null,
+  selected_slot: null,
+  selected_vehicle: null,
+  vehicle_number: '',
+  vehicle_type: null,
+  selected_payment_method: null,
+  estimated_cost: null,
+  created_ticket_id: null,
 };
 
 export const useBookingFlowStore = create<BookingFlowState>((set) => ({
   ...initialState,
   
-  setFacility: (id, name) => set({ facilityId: id, facilityName: name }),
-  setSlot: (slot) => set({ selectedSlot: slot }),
-  setVehicle: (vehicle, number, type) => set({ selectedVehicle: vehicle, vehicleNumber: number, vehicleType: type }),
-  setPaymentMethod: (method) => set({ selectedPaymentMethod: method }),
-  setEstimatedCost: (cost) => set({ estimatedCost: cost }),
-  setCreatedTicket: (id) => set({ createdTicketId: id }),
+  setFacility: (id, name) => set({ facility_id: id, facility_name: name }),
+  setSlot: (slot) => set({ selected_slot: slot }),
+  setVehicle: (vehicle, number, type) => set({ selected_vehicle: vehicle, vehicle_number: number, vehicle_type: type }),
+  setPaymentMethod: (method) => set({ selected_payment_method: method }),
+  setEstimatedCost: (cost) => set({ estimated_cost: cost }),
+  setCreatedTicket: (id) => set({ created_ticket_id: id }),
   resetBookingFlow: () => set(initialState),
 }));

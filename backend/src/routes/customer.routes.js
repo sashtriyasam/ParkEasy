@@ -17,9 +17,10 @@ router.use(restrictTo('CUSTOMER', 'ADMIN'));
 
 // --- AUTHENTICATED CUSTOMER ROUTES ---
 
-// --- PROFILE ---
+// --- PROFILE & ANALYTICS ---
 router.get('/profile', customerController.getProfile);
 router.put('/profile', customerController.updateProfile);
+router.get('/stats', customerController.getStats);
 
 // --- VEHICLES ---
 router.get('/vehicles', customerController.getVehicles);

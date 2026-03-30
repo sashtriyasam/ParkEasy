@@ -202,6 +202,29 @@ const getFavorites = asyncHandler(async (req, res) => {
     res.status(200).json({ status: 'success', results: favorites.length, data: favorites });
 });
 
+const getCustomerStats = asyncHandler(async (req, res) => {
+    const bookingCount = await prisma.ticket.count({
+        where: { customer_id: req.user.id }
+    });
+
+    const activeTickets = await prisma.ticket.findMany({
+        where: { customer_id: req.user.id, status: 'ACTIVE' },
+        select: { entry_time: true }
+    });
+
+    // Simple placeholder for 'hours parked'
+    const totalHours = activeTickets.length * 2; // Mock logic for now
+
+    res.status(200).json({
+        status: 'success',
+        data: {
+            bookings: bookingCount || 0,
+            parked_hours: totalHours || 0,
+            savings: Math.floor(bookingCount * 15.5) // Placeholder calculation
+        }
+    });
+});
+
 module.exports = {
     searchParking,
     getFacilityDetails,
@@ -213,5 +236,6 @@ module.exports = {
     deleteVehicle,
     addFavorite,
     removeFavorite,
-    getFavorites
+    getFavorites,
+    getStats: getCustomerStats
 };

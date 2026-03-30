@@ -10,6 +10,23 @@ const { initSocket } = require('./src/services/socket.service');
 const PORT = process.env.PORT || 5000;
 const server = http.createServer(app);
 
+// Phase 12: Environment Validation
+const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET', 'JWT_REFRESH_SECRET'];
+const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+
+if (missingEnvVars.length > 0) {
+    Logger.error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
+    process.exit(1);
+}
+
+// Optional env var warnings
+const optionalEnvVars = ['RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'EXPO_ACCESS_TOKEN'];
+optionalEnvVars.forEach(envVar => {
+    if (!process.env[envVar]) {
+        Logger.warn(`Optional environment variable ${envVar} is missing. Some features may not work.`);
+    }
+});
+
 async function startServer() {
     try {
         // Check DB connection
@@ -21,12 +38,39 @@ async function startServer() {
         Logger.info('Socket.io initialized');
 
         server.listen(PORT, () => {
-            Logger.info(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+            Logger.info(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
         });
     } catch (error) {
-        Logger.error('Failed to connect to the database', error);
+        Logger.error('Failed to start server:', error);
         process.exit(1);
     }
 }
+
+// Phase 12: Graceful Shutdown
+const gracefulShutdown = async (signal) => {
+    Logger.info(`${signal} received. Starting graceful shutdown...`);
+    
+    server.close(async () => {
+        Logger.info('HTTP server closed.');
+        
+        try {
+            await prisma.$disconnect();
+            Logger.info('Prisma disconnected.');
+            process.exit(0);
+        } catch (error) {
+            Logger.error('Error during Prisma disconnect:', error);
+            process.exit(1);
+        }
+    });
+
+    // If shutdown takes too long (timeout)
+    setTimeout(() => {
+        Logger.error('Graceful shutdown timed out. Forcefully exiting.');
+        process.exit(1);
+    }, 10000);
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 startServer();

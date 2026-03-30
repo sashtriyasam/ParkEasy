@@ -9,6 +9,15 @@ import { useBookingFlowStore } from '../../../store/bookingFlowStore';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import { colors } from '../../../constants/colors';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withRepeat, 
+  withTiming, 
+  withSequence,
+  withSpring,
+  interpolateColor
+} from 'react-native-reanimated';
 
 export default function BookingSuccessScreen() {
   const router = useRouter();
@@ -17,11 +26,29 @@ export default function BookingSuccessScreen() {
 
   const [status, requestPermission] = MediaLibrary.usePermissions();
 
+  // Premium Animations
+  const glow = useSharedValue(0);
+  const iconScale = useSharedValue(0);
+
   useEffect(() => {
     if (status === null) {
       requestPermission();
     }
+    
+    // Start animations
+    glow.value = withRepeat(withTiming(1, { duration: 1500 }), -1, true);
+    iconScale.value = withSpring(1, { damping: 12, stiffness: 100 });
   }, [status]);
+
+  const animatedGlowStyle = useAnimatedStyle(() => ({
+    borderColor: interpolateColor(glow.value, [0, 1], [colors.border, colors.primary]),
+    shadowOpacity: glow.value * 0.5,
+    shadowRadius: glow.value * 15,
+  }));
+
+  const animatedIconStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: iconScale.value }],
+  }));
 
   if (!createdTicketId) {
     return (
@@ -78,26 +105,28 @@ export default function BookingSuccessScreen() {
       </View>
 
       <View style={styles.content}>
-        <View style={styles.successIconContainer}>
+        <Animated.View style={[styles.successIconContainer, animatedIconStyle]}>
           <Ionicons name="checkmark-circle" size={80} color={colors.success} />
-        </View>
+        </Animated.View>
         <Text style={styles.title}>Booking Confirmed!</Text>
         <Text style={styles.subtitle}>Your parking slot has been reserved successfully.</Text>
 
         <View ref={qrRef}collapsable={false} style={styles.ticketCardWrapper}>
-          <Card style={styles.ticketCard}>
-            <Text style={styles.ticketFacility}>{facilityName}</Text>
-            <View style={styles.qrContainer}>
-              <QRCode
-                value={createdTicketId}
-                size={160}
-                color={colors.textPrimary}
-                backgroundColor="white"
-              />
-            </View>
-            <Text style={styles.ticketId}>ID: {createdTicketId}</Text>
-            <Text style={styles.ticketVehicle}>{vehicleNumber}</Text>
-          </Card>
+          <Animated.View style={[styles.glowContainer, animatedGlowStyle]}>
+            <Card style={styles.ticketCard}>
+              <Text style={styles.ticketFacility}>{facilityName}</Text>
+              <View style={styles.qrContainer}>
+                <QRCode
+                  value={createdTicketId}
+                  size={160}
+                  color={colors.textPrimary}
+                  backgroundColor="white"
+                />
+              </View>
+              <Text style={styles.ticketId}>ID: {createdTicketId}</Text>
+              <Text style={styles.ticketVehicle}>{vehicleNumber}</Text>
+            </Card>
+          </Animated.View>
         </View>
 
         <View style={styles.actionRow}>
@@ -178,15 +207,27 @@ const styles = StyleSheet.create({
   ticketCardWrapper: {
     width: '100%',
     alignItems: 'center',
-    backgroundColor: colors.background, // Important for viewRef screenshot
+    paddingVertical: 20,
+  },
+  glowContainer: {
+    width: '85%',
+    borderRadius: 24,
+    borderWidth: 2,
+    backgroundColor: 'white',
+    padding: 2,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 15,
+    elevation: 10,
   },
   ticketCard: {
     padding: 24,
     alignItems: 'center',
-    width: '80%',
+    borderRadius: 22,
     backgroundColor: 'white',
     borderStyle: 'dashed',
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: colors.border,
   },
   ticketFacility: {

@@ -36,8 +36,9 @@ const SlotItem: React.FC<{
     }
   }, [isHighlighted]);
 
-  const isFree = item.status === 'free';
-  const dotColor = SLOT_STATUS_COLORS[item.status] || colors.textMuted;
+  const isFree = item.status.toUpperCase() === 'FREE' || item.status === 'free';
+  const statusKey = item.status.toLowerCase() as keyof typeof SLOT_STATUS_COLORS;
+  const dotColor = SLOT_STATUS_COLORS[statusKey] || colors.textMuted;
 
   const borderColor = flashAnim.interpolate({
     inputRange: [0, 1],
@@ -63,7 +64,7 @@ const SlotItem: React.FC<{
         ]}
       >
         <View style={[styles.dot, { backgroundColor: dotColor }]} />
-        <Text style={styles.slotNumber}>{item.slotNumber}</Text>
+        <Text style={styles.slotNumber}>{item.slot_number}</Text>
       </Animated.View>
     </TouchableOpacity>
   );
