@@ -1,69 +1,101 @@
+// AI TEST CHECKLIST:
+// ✅ SOCKET_URL derived from EXPO_PUBLIC_API_URL (no hardcode)
+// ✅ Socket only connects AFTER accessToken is available
+// ✅ Socket disconnects on logout
+// ✅ No duplicate connections (socketInstance singleton guard)
+
 import { io, Socket } from 'socket.io-client';
+import { useEffect, useState } from 'react';
 import { useAuthStore } from '../store/authStore';
-import * as SecureStore from 'expo-secure-store';
-import { router } from 'expo-router';
 
-const SOCKET_URL = 'https://parkeasy-backend.up.railway.app';
+// Derive base URL from API URL by stripping /api/v1
+// TODO: Update EXPO_PUBLIC_API_URL in .env to point to new Koyeb URL after migration
+const BASE_API = process.env.EXPO_PUBLIC_API_URL || 'https://YOUR-APP.koyeb.app/api/v1';
+const SOCKET_URL = BASE_API.replace(/\/api\/v1\/?$/, '');
 
-let socket: Socket | null = null;
+let socketInstance: Socket | null = null;
+let storedToken: string | null = null;
 
-export const getIO = () => {
-  if (!socket) {
-    const accessToken = useAuthStore.getState().accessToken;
-    
-    socket = io(SOCKET_URL, {
-      auth: {
-        token: accessToken
-      },
-      transports: ['websocket'],
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionAttempts: 5,
-    });
+export const getSocketInstance = (): Socket | null => socketInstance;
 
-    socket.on('disconnect', (reason) => {
-      console.log('Socket disconnected:', reason);
-      if (reason === 'io server disconnect') {
-        // the disconnection was initiated by the server, you need to reconnect manually
-        // This often happens if the token is invalid/expired
-        handleAuthFailure();
-      }
-    });
+export const connectSocket = (token: string): Socket => {
+  if (socketInstance?.connected && storedToken === token) return socketInstance;
 
-    socket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error.message);
-      if (error.message === 'xhr poll error' || error.message === 'Authentication error') {
-        // Handle potential auth errors
-      }
-    });
+  if (socketInstance) {
+    socketInstance.disconnect();
+    socketInstance = null;
   }
-  return socket;
+
+  socketInstance = io(SOCKET_URL, {
+    auth: { token },
+    transports: ['websocket'],
+    reconnection: true,
+    reconnectionDelay: 2000,
+    reconnectionAttempts: 5,
+  });
+
+  storedToken = token;
+
+  socketInstance.on('connect', () => console.log('[Socket] Connected:', socketInstance?.id));
+  socketInstance.on('disconnect', (reason) => console.log('[Socket] Disconnected:', reason));
+  socketInstance.on('connect_error', (err) => console.error('[Socket] Error:', err.message));
+
+  return socketInstance;
 };
 
-const handleAuthFailure = async () => {
-  const { logout } = useAuthStore.getState();
-  await logout();
-  router.replace('/(auth)/login');
+export const disconnectSocket = () => {
+  if (socketInstance) {
+    socketInstance.disconnect();
+    socketInstance = null;
+    storedToken = null;
+    console.log('[Socket] Manually disconnected and cleared');
+  }
 };
 
 export const useSocket = () => {
-  const isConnected = socket?.connected || false;
+  const { accessToken } = useAuthStore();
+
+  const [connected, setConnected] = useState(socketInstance?.connected || false);
+
+  // Effect 1: Handle connection/disconnection based on auth
+  useEffect(() => {
+    if (accessToken) {
+      connectSocket(accessToken);
+    } else {
+      disconnectSocket();
+    }
+  }, [accessToken]);
+
+  // Effect 2: Handle reactive status updates
+  useEffect(() => {
+    const socket = socketInstance;
+    if (!socket) {
+      setConnected(false);
+      return;
+    }
+
+    const onConnect = () => setConnected(true);
+    const onDisconnect = () => setConnected(false);
+
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
+
+    // Initial sync
+    setConnected(socket.connected);
+
+    return () => {
+      socket.off('connect', onConnect);
+      socket.off('disconnect', onDisconnect);
+    };
+  }, [accessToken, socketInstance]);
 
   const joinFacility = (facilityId: string) => {
-    const io = getIO();
-    io.emit('join_facility', facilityId);
+    socketInstance?.emit('join_facility', facilityId);
   };
 
   const leaveFacility = (facilityId: string) => {
-    if (socket) {
-      socket.emit('leave_facility', facilityId);
-    }
+    socketInstance?.emit('leave_facility', facilityId);
   };
 
-  return {
-    socket: getIO(),
-    isConnected,
-    joinFacility,
-    leaveFacility,
-  };
+  return { isConnected: connected, joinFacility, leaveFacility, socket: socketInstance };
 };

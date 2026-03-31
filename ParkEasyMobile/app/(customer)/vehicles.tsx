@@ -1,31 +1,49 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput, Alert, Platform, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { FadeInDown, Layout } from 'react-native-reanimated';
 import { colors } from '../../constants/colors';
-import { Card } from '../../components/ui/Card';
+import { GlassCard } from '../../components/ui/GlassCard';
 import { Button } from '../../components/ui/Button';
+import { Skeleton } from '../../components/ui/SkeletonLoader';
 import { get, post, del } from '../../services/api';
 import { Vehicle, VehicleType } from '../../types';
 
+const { width } = Dimensions.get('window');
+
+const VEHICLE_TYPES: { type: VehicleType; icon: any; label: string }[] = [
+  { type: 'car', icon: 'car', label: 'Car' },
+  { type: 'bike', icon: 'bicycle', label: 'Bike' },
+  { type: 'scooter', icon: 'moped', label: 'Scooter' },
+  { type: 'truck', icon: 'bus', label: 'Other' },
+];
+
 export default function VehiclesScreen() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [newVehicle, setNewVehicle] = useState({
     vehicle_number: '',
     vehicle_type: 'car' as VehicleType,
     nickname: '',
   });
 
-  const fetchVehicles = async () => {
-    setLoading(true);
+  const fetchVehicles = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
+    else setRefreshing(true);
+    
     try {
       const res = await get('/customer/vehicles');
-      setVehicles(res.data.data);
+      setVehicles(res.data.data || []);
     } catch (e) {
       console.error('Error fetching vehicles', e);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
+      else setRefreshing(false);
     }
   };
 
@@ -35,127 +53,179 @@ export default function VehiclesScreen() {
 
   const handleAddVehicle = async () => {
     if (!newVehicle.vehicle_number) {
-      Alert.alert('Error', 'Please enter vehicle number');
+      Alert.alert('Incomplete Info', 'Please provide a vehicle plate number.');
       return;
     }
+    
+    setIsSubmitting(true);
     try {
       await post('/customer/vehicles', newVehicle);
       setModalVisible(false);
       setNewVehicle({ vehicle_number: '', vehicle_type: 'car', nickname: '' });
-      fetchVehicles();
+      fetchVehicles(false);
     } catch (e: any) {
-      Alert.alert('Error', e.response?.data?.message || 'Failed to add vehicle');
+      Alert.alert('Error', e.response?.data?.message || 'Failed to add vehicle. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleDeleteVehicle = (id: string) => {
-    Alert.alert('Delete Vehicle', 'Are you sure you want to remove this vehicle?', [
-      { text: 'Cancel', style: 'cancel' },
-      { 
-        text: 'Delete', 
-        style: 'destructive', 
-        onPress: async () => {
-          try {
-            await del(`/customer/vehicles/${id}`);
-            fetchVehicles();
-          } catch (e) {
-            Alert.alert('Error', 'Failed to delete vehicle');
+    Alert.alert(
+      'Remove Vehicle', 
+      'Are you sure you want to remove this vehicle from your account?', 
+      [
+        { text: 'Keep It', style: 'cancel' },
+        { 
+          text: 'Remove', 
+          style: 'destructive', 
+          onPress: async () => {
+            try {
+              await del(`/customer/vehicles/${id}`);
+              fetchVehicles(false);
+            } catch (e) {
+              Alert.alert('Error', 'Failed to remove vehicle.');
+            }
           }
         }
-      }
-    ]);
+      ]
+    );
   };
 
-  const renderVehicle = ({ item }: { item: Vehicle }) => (
-    <Card style={styles.vehicleCard}>
-      <View style={styles.vehicleIconBox}>
-        <Ionicons 
-          name={item.vehicle_type === 'car' ? 'car' : item.vehicle_type === 'bike' ? 'bicycle' : 'bus'} 
-          size={32} 
-          color={colors.primary} 
-        />
-      </View>
-      <View style={styles.vehicleDetails}>
-        <Text style={styles.vehiclePlate}>{item.vehicle_number.toUpperCase()}</Text>
-        <Text style={styles.vehicleType}>{item.nickname || item.vehicle_type.toUpperCase()}</Text>
-      </View>
-      <TouchableOpacity onPress={() => handleDeleteVehicle(item.id)}>
-        <Ionicons name="trash-outline" size={20} color={colors.error} />
-      </TouchableOpacity>
-    </Card>
+  const renderVehicle = ({ item, index }: { item: Vehicle; index: number }) => (
+    <Animated.View 
+      entering={FadeInDown.delay(index * 100).springify()}
+      layout={Layout.springify()}
+    >
+      <GlassCard style={styles.vehicleCard} intensity={40}>
+        <View style={[styles.vehicleIconBox, { backgroundColor: colors.primary + '15' }]}>
+          <Ionicons 
+            name={(VEHICLE_TYPES.find(t => t.type === item.vehicle_type)?.icon || 'car') as any} 
+            size={28} 
+            color={colors.primary} 
+          />
+        </View>
+        <View style={styles.vehicleDetails}>
+          <Text style={styles.vehiclePlate}>{item.vehicle_number.toUpperCase()}</Text>
+          <Text style={styles.vehicleType}>{item.nickname || item.vehicle_type.toUpperCase()}</Text>
+        </View>
+        <TouchableOpacity 
+          onPress={() => handleDeleteVehicle(item.id)}
+          style={styles.deleteBtn}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="trash-outline" size={20} color={colors.danger} />
+        </TouchableOpacity>
+      </GlassCard>
+    </Animated.View>
   );
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>My Vehicles</Text>
-        <Text style={styles.subtitle}>Manage your vehicles for quick booking</Text>
+        <Text style={styles.title}>My Garage</Text>
+        <Text style={styles.subtitle}>Save your vehicles for a faster booking experience</Text>
       </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 50 }} />
+        <View style={styles.list}>
+          {[1, 2, 3].map(i => (
+            <Skeleton key={i} width="100%" height={90} borderRadius={24} style={{ marginBottom: 16 }} />
+          ))}
+        </View>
       ) : (
         <FlatList
           data={vehicles}
           renderItem={renderVehicle}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          onRefresh={() => fetchVehicles(false)}
+          refreshing={refreshing}
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <Ionicons name="car-outline" size={64} color={colors.textMuted} />
-              <Text style={styles.emptyText}>No vehicles added yet</Text>
-            </View>
+            <Animated.View entering={FadeInDown} style={styles.empty}>
+              <View style={styles.emptyIconCircle}>
+                <Ionicons name="car-outline" size={60} color={colors.textMuted} />
+              </View>
+              <Text style={styles.emptyText}>Your garage is empty</Text>
+              <Text style={styles.emptySub}>Add a vehicle to get started with seamless parking</Text>
+            </Animated.View>
           }
         />
       )}
 
-      <Button 
-        label="Add New Vehicle" 
-        onPress={() => setModalVisible(true)} 
-        style={styles.fab}
-      />
+      <Animated.View entering={FadeInDown.delay(400).springify()} style={styles.fabContainer}>
+        <Button 
+          label="Add New Vehicle" 
+          onPress={() => setModalVisible(true)} 
+          variant="primary"
+          icon="add"
+          style={styles.addBtn}
+        />
+      </Animated.View>
 
-      <Modal visible={modalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add Vehicle</Text>
+      <Modal visible={modalVisible} animationType="fade" transparent onRequestClose={() => setModalVisible(false)}>
+        <BlurView intensity={30} tint="dark" style={styles.modalOverlay}>
+          <Animated.View entering={FadeInDown.springify()} style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>New Vehicle</Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeBtn}>
+                <Ionicons name="close" size={24} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
             
-            <TextInput
-              style={styles.input}
-              placeholder="Vehicle Number (e.g. MH12AB1234)"
-              value={newVehicle.vehicle_number}
-              onChangeText={(text) => setNewVehicle({...newVehicle, vehicle_number: text})}
-              autoCapitalize="characters"
-            />
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>PLATE NUMBER</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="MH12AB1234"
+                placeholderTextColor={colors.textMuted}
+                value={newVehicle.vehicle_number}
+                onChangeText={(text) => setNewVehicle({...newVehicle, vehicle_number: text.toUpperCase()})}
+                autoCapitalize="characters"
+              />
+            </View>
             
-            <TextInput
-              style={styles.input}
-              placeholder="Nickname (Optional)"
-              value={newVehicle.nickname}
-              onChangeText={(text) => setNewVehicle({...newVehicle, nickname: text})}
-            />
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>NICKNAME (OPTIONAL)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="My Awesome Car"
+                placeholderTextColor={colors.textMuted}
+                value={newVehicle.nickname}
+                onChangeText={(text) => setNewVehicle({...newVehicle, nickname: text})}
+              />
+            </View>
 
-            <View style={styles.typeRow}>
-              {(['car', 'bike', 'scooter', 'truck'] as VehicleType[]).map((type) => (
+            <Text style={styles.inputLabel}>VEHICLE TYPE</Text>
+            <View style={styles.typeGrid}>
+              {VEHICLE_TYPES.map((v) => (
                 <TouchableOpacity 
-                  key={type}
-                  style={[styles.typeBtn, newVehicle.vehicle_type === type && styles.typeBtnActive]}
-                  onPress={() => setNewVehicle({...newVehicle, vehicle_type: type})}
+                  key={v.type}
+                  style={[styles.typeOption, newVehicle.vehicle_type === v.type && styles.typeOptionActive]}
+                  onPress={() => setNewVehicle({...newVehicle, vehicle_type: v.type})}
+                  activeOpacity={0.8}
                 >
-                  <Text style={[styles.typeBtnText, newVehicle.vehicle_type === type && styles.typeBtnTextActive]}>
-                    {type.toUpperCase()}
+                  <Ionicons 
+                    name={v.icon} 
+                    size={22} 
+                    color={newVehicle.vehicle_type === v.type ? 'white' : colors.textSecondary} 
+                  />
+                  <Text style={[styles.typeLabel, newVehicle.vehicle_type === v.type && styles.typeLabelActive]}>
+                    {v.label}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            <View style={styles.modalActions}>
-              <Button label="Cancel" variant="secondary" style={{ flex: 1 }} onPress={() => setModalVisible(false)} />
-              <View style={{ width: 16 }} />
-              <Button label="Save" style={{ flex: 1 }} onPress={handleAddVehicle} />
-            </View>
-          </View>
-        </View>
+            <Button 
+              label={isSubmitting ? "Saving..." : "Save Vehicle"} 
+              onPress={handleAddVehicle} 
+              loading={isSubmitting}
+              style={styles.saveBtn}
+            />
+          </Animated.View>
+        </BlurView>
       </Modal>
     </View>
   );
@@ -165,40 +235,46 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-    padding: 20,
-    paddingTop: 60,
   },
   header: {
-    marginBottom: 30,
+    paddingTop: Platform.OS === 'ios' ? 80 : 60,
+    paddingHorizontal: 24,
+    paddingBottom: 32,
+    backgroundColor: 'white',
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
+    ...colors.shadows.sm,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '800',
+    fontSize: 32,
+    fontWeight: '900',
     color: colors.textPrimary,
+    letterSpacing: -1,
   },
   subtitle: {
     fontSize: 14,
     color: colors.textSecondary,
-    marginTop: 4,
+    fontWeight: '500',
+    marginTop: 6,
+    lineHeight: 20,
   },
   list: {
-    paddingBottom: 100,
+    padding: 24,
+    paddingBottom: 150,
   },
   vehicleCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    padding: 20,
     marginBottom: 16,
-    backgroundColor: colors.surface,
-    borderRadius: 20,
+    borderRadius: 28,
     borderWidth: 1,
     borderColor: colors.border,
   },
   vehicleIconBox: {
     width: 56,
     height: 56,
-    borderRadius: 16,
-    backgroundColor: colors.primary + '10',
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
@@ -208,85 +284,146 @@ const styles = StyleSheet.create({
   },
   vehiclePlate: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '900',
     color: colors.textPrimary,
+    letterSpacing: 0.5,
   },
   vehicleType: {
     fontSize: 12,
     color: colors.textMuted,
-    marginTop: 2,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    marginTop: 4,
   },
-  fab: {
+  deleteBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: colors.danger + '10',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fabContainer: {
     position: 'absolute',
-    bottom: 110,
-    left: 20,
-    right: 20,
-    ...colors.shadows.lg,
+    bottom: 40,
+    left: 24,
+    right: 24,
+  },
+  addBtn: {
+    borderRadius: 20,
+    height: 60,
+    ...colors.shadows.md,
   },
   empty: {
     alignItems: 'center',
-    marginTop: 100,
+    justifyContent: 'center',
+    marginTop: 80,
+    paddingHorizontal: 40,
+  },
+  emptyIconCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
   },
   emptyText: {
-    color: colors.textMuted,
-    marginTop: 16,
-    fontSize: 16,
+    fontSize: 20,
+    fontWeight: '900',
+    color: colors.textPrimary,
+    marginBottom: 8,
+  },
+  emptySub: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    fontWeight: '500',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    padding: 20,
+    justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: colors.surface,
-    borderRadius: 32,
-    padding: 30,
+    backgroundColor: 'white',
+    borderTopLeftRadius: 40,
+    borderTopRightRadius: 40,
+    padding: 32,
+    paddingTop: 24,
     ...colors.shadows.lg,
   },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 32,
+  },
   modalTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 24,
+    fontSize: 24,
+    fontWeight: '900',
     color: colors.textPrimary,
+    letterSpacing: -0.5,
+  },
+  closeBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inputGroup: {
+    marginBottom: 24,
+  },
+  inputLabel: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: colors.textMuted,
+    letterSpacing: 1.5,
+    marginBottom: 10,
+    marginLeft: 4,
   },
   input: {
-    backgroundColor: colors.background,
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 16,
+    backgroundColor: colors.primaryLight,
+    padding: 18,
+    borderRadius: 20,
     fontSize: 16,
+    fontWeight: '700',
     color: colors.textPrimary,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'transparent',
   },
-  typeRow: {
+  typeGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 24,
+    gap: 12,
+    marginBottom: 32,
   },
-  typeBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: colors.background,
+  typeOption: {
+    flex: 1,
+    height: 80,
+    borderRadius: 20,
+    backgroundColor: colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'transparent',
   },
-  typeBtnActive: {
+  typeOptionActive: {
     backgroundColor: colors.primary,
-    borderColor: colors.primary,
   },
-  typeBtnText: {
-    fontSize: 12,
-    fontWeight: 'bold',
+  typeLabel: {
+    fontSize: 10,
+    fontWeight: '800',
     color: colors.textSecondary,
   },
-  typeBtnTextActive: {
+  typeLabelActive: {
     color: 'white',
   },
-  modalActions: {
-    flexDirection: 'row',
+  saveBtn: {
+    height: 60,
+    borderRadius: 20,
   }
 });

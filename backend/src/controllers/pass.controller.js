@@ -36,8 +36,34 @@ const getMyPasses = asyncHandler(async (req, res) => {
     res.status(200).json({ status: 'success', results: passes.length, data: passes });
 });
 
+const cancelPass = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+
+    const pass = await passService.cancelPass(req.user.id, id);
+
+    res.status(200).json({
+        status: 'success',
+        message: 'Monthly pass cancelled successfully',
+        data: pass
+    });
+});
+
+const getFacilityPasses = asyncHandler(async (req, res) => {
+    const { facilityId } = req.params;
+
+    const passes = await passService.getFacilityPasses(facilityId, req.user.id);
+
+    res.status(200).json({ 
+        status: 'success', 
+        results: passes.length, 
+        data: passes 
+    });
+});
+
 module.exports = {
     getAvailablePasses,
     purchasePass,
-    getMyPasses
+    getMyPasses,
+    cancelPass,
+    getFacilityPasses
 };

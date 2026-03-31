@@ -1,25 +1,34 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, Dimensions, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, Dimensions, TouchableOpacity, Platform, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { get } from '../../services/api';
-import { Card } from '../../components/ui/Card';
+import { GlassCard } from '../../components/ui/GlassCard';
 import { colors } from '../../constants/colors';
 import { LineChart } from 'react-native-chart-kit';
+import { useRouter } from 'expo-router';
 
 const { width } = Dimensions.get('window');
 
 export default function EarningsScreen() {
+  const router = useRouter();
   const [stats, setStats] = useState({
     totalEarnings: 0,
     withdrawable: 0,
     pending: 0,
     thisMonth: 0,
   });
+  const [trend, setTrend] = useState({
+    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+    data: [0, 0, 0, 0, 0, 0],
+  });
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetchEarnings = async () => {
+  const fetchEarnings = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const res = await get('/provider/earnings');
       if (res.data?.data) {
@@ -30,6 +39,24 @@ export default function EarningsScreen() {
           thisMonth: res.data.data.thisMonthRevenue || 0,
         });
         setHistory(res.data.data.history || []);
+        if (res.data.data.trend) {
+          const { labels, data } = res.data.data.trend;
+          const isValidTrend = Array.isArray(labels) && 
+                               Array.isArray(data) && 
+                               labels.length > 0 &&
+                               labels.length === data.length &&
+                               data.every((val: any) => !isNaN(parseFloat(val)));
+
+          if (isValidTrend) {
+            setTrend({
+              labels,
+              data: data.map((val: any) => parseFloat(val))
+            });
+          } else {
+            console.warn('Earnings: Invalid trend data received, using safe defaults');
+            setTrend({ labels: [], data: [] });
+          }
+        }
       }
     } catch (error) {
       console.error('Error fetching earnings:', error);
@@ -45,107 +72,166 @@ export default function EarningsScreen() {
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchEarnings();
+    fetchEarnings(false);
+  };
+
+  const handleWithdraw = () => {
+    Alert.alert(
+      "Settlement Portal",
+      "Total earnings are automatically settled to your registered bank account every cycle. Manual withdrawal requests will be available soon.",
+      [{ text: "OK" }]
+    );
   };
 
   const chartData = {
-    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+    labels: trend.labels,
     datasets: [
       {
-        data: [20, 45, 28, 80, 99, 43], // Mocking some growth data for premium feel
-        color: (opacity = 1) => `rgba(79, 70, 229, ${opacity})`,
-        strokeWidth: 3
+        data: trend.data,
+        color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+        strokeWidth: 3,
       }
     ],
   };
 
   return (
-    <ScrollView 
-      style={styles.container}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-    >
-      <View style={styles.header}>
-        <Text style={styles.title}>Earnings</Text>
-        <Text style={styles.subtitle}>Track your revenue and settlements</Text>
-      </View>
-
-      <View style={styles.mainCardContainer}>
-        <Card style={styles.mainCard}>
-          <Text style={styles.mainLabel}>Withdrawable Balance</Text>
-          <Text style={styles.mainValue}>₹{stats.withdrawable.toLocaleString()}</Text>
-          <TouchableOpacity style={styles.withdrawButton}>
-            <Text style={styles.withdrawButtonText}>Withdraw to Bank</Text>
-          </TouchableOpacity>
-        </Card>
-      </View>
-
-      <View style={styles.statsGrid}>
-        <View style={styles.statBox}>
-          <Text style={styles.statLabel}>Total Life Earnings</Text>
-          <Text style={styles.statValue}>₹{stats.totalEarnings.toLocaleString()}</Text>
-        </View>
-        <View style={styles.statBox}>
-          <Text style={styles.statLabel}>This Month</Text>
-          <Text style={styles.statValue}>₹{stats.thisMonth.toLocaleString()}</Text>
-        </View>
-      </View>
-
-      <View style={styles.chartSection}>
-        <Text style={styles.sectionTitle}>Revenue Growth</Text>
-        <LineChart
-          data={chartData}
-          width={width - 32}
-          height={220}
-          chartConfig={{
-            backgroundColor: '#fff',
-            backgroundGradientFrom: '#fff',
-            backgroundGradientTo: '#fff',
-            decimalPlaces: 0,
-            color: (opacity = 1) => `rgba(79, 70, 229, ${opacity})`,
-            labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
-            style: {
-              borderRadius: 16
-            },
-            propsForDots: {
-              r: '6',
-              strokeWidth: '2',
-              stroke: colors.primary
-            }
-          }}
-          bezier
-          style={styles.chart}
-        />
-      </View>
-
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Recent Settlements</Text>
-      </View>
-      
-      <View style={styles.historyList}>
-        {history.length > 0 ? (
-          history.map((item, idx) => (
-            <View key={idx} style={styles.historyItem}>
-              <View style={styles.historyIcon}>
-                <Ionicons 
-                  name={item.status === 'SUCCESS' ? 'checkmark-circle' : 'time'} 
-                  size={24} 
-                  color={item.status === 'SUCCESS' ? colors.success : colors.warning} 
-                />
-              </View>
-              <View style={styles.historyInfo}>
-                <Text style={styles.historyTitle}>{item.method || 'Bank Transfer'}</Text>
-                <Text style={styles.historyDate}>{new Date(item.created_at).toLocaleDateString()}</Text>
-              </View>
-              <Text style={[styles.historyAmount, { color: item.status === 'SUCCESS' ? colors.textPrimary : colors.textSecondary }]}>
-                + ₹{item.amount}
-              </Text>
+    <View style={styles.container}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="white" />}
+      >
+        {/* Hero Header */}
+        <LinearGradient
+          colors={[colors.primary, colors.primaryDark]}
+          style={styles.heroSection}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <View style={styles.heroHeader}>
+            <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+              <Ionicons name="arrow-back" size={24} color="white" />
+            </TouchableOpacity>
+            <View>
+              <Text style={styles.heroLabel}>EARNINGS</Text>
+              <Text style={styles.heroTitle}>Revenue Center</Text>
             </View>
-          ))
-        ) : (
-          <Text style={styles.emptyText}>No recent settlements found.</Text>
-        )}
-      </View>
-    </ScrollView>
+          </View>
+
+          <Animated.View entering={FadeInDown.delay(200)}>
+            <GlassCard style={styles.balanceCard} intensity={20}>
+              <Text style={styles.balanceLabel}>WITHDRAWABLE BALANCE</Text>
+              <Text style={styles.balanceValue}>₹{stats.withdrawable.toLocaleString()}</Text>
+
+              <TouchableOpacity 
+                style={styles.withdrawBtn} 
+                activeOpacity={0.8}
+                onPress={handleWithdraw}
+              >
+                <LinearGradient
+                  colors={['rgba(255,255,255,1)', 'rgba(230,240,255,1)']}
+                  style={styles.withdrawGrad}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Ionicons name="arrow-up-circle" size={18} color={colors.primary} />
+                  <Text style={styles.withdrawBtnText}>Withdraw to Bank</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </GlassCard>
+          </Animated.View>
+
+          {/* Trend Chart */}
+          <View style={{ marginTop: 24 }}>
+            <Text style={styles.chartLabel}>6-MONTH TREND</Text>
+            <LineChart
+              data={chartData}
+              width={width - 48}
+              height={150}
+              chartConfig={{
+                backgroundColor: 'transparent',
+                backgroundGradientFrom: 'transparent',
+                backgroundGradientTo: 'transparent',
+                backgroundGradientFromOpacity: 0,
+                backgroundGradientToOpacity: 0,
+                decimalPlaces: 0,
+                color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+                labelColor: (opacity = 1) => `rgba(255, 255, 255, ${opacity * 0.7})`,
+                style: { borderRadius: 16 },
+                propsForDots: {
+                  r: '5',
+                  strokeWidth: '2',
+                  stroke: 'white',
+                  fill: colors.primary,
+                }
+              }}
+              bezier
+              style={styles.chart}
+              withShadow={false}
+            />
+          </View>
+        </LinearGradient>
+
+        {/* Stat Tiles */}
+        <View style={styles.statsRow}>
+          <Animated.View entering={FadeInDown.delay(100)} style={styles.halfTile}>
+            <GlassCard style={styles.statTile} intensity={10}>
+              <View style={[styles.statIcon, { backgroundColor: colors.success + '15' }]}>
+                <Ionicons name="trending-up" size={22} color={colors.success} />
+              </View>
+              <Text style={styles.statVal}>₹{stats.thisMonth.toLocaleString()}</Text>
+              <Text style={styles.statLbl}>THIS MONTH</Text>
+            </GlassCard>
+          </Animated.View>
+          
+          <Animated.View entering={FadeInDown.delay(200)} style={styles.halfTile}>
+            <GlassCard style={styles.statTile} intensity={10}>
+              <View style={[styles.statIcon, { backgroundColor: colors.info + '15' }]}>
+                <Ionicons name="wallet" size={22} color={colors.info} />
+              </View>
+              <Text style={styles.statVal}>₹{stats.totalEarnings.toLocaleString()}</Text>
+              <Text style={styles.statLbl}>ALL TIME</Text>
+            </GlassCard>
+          </Animated.View>
+        </View>
+
+        {/* Settlement History */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>SETTLEMENT LOG</Text>
+
+          {history.length > 0 ? (
+            history.map((item, idx) => (
+              <Animated.View key={idx} entering={FadeInUp.delay(idx * 80)}>
+                <GlassCard style={styles.settlementCard} intensity={5}>
+                  <View style={[
+                    styles.settlementIconBox,
+                    { backgroundColor: item.status === 'SUCCESS' ? colors.success + '15' : colors.warning + '15' }
+                  ]}>
+                    <Ionicons 
+                      name={item.status === 'SUCCESS' ? 'checkmark-circle' : 'time'} 
+                      size={24} 
+                      color={item.status === 'SUCCESS' ? colors.success : colors.warning} 
+                    />
+                  </View>
+                  <View style={styles.settlementInfo}>
+                    <Text style={styles.settlementTitle}>{item.method || 'Bank Transfer'}</Text>
+                    <Text style={styles.settlementDate}>{new Date(item.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}</Text>
+                  </View>
+                  <Text style={[styles.settlementAmount, { color: item.status === 'SUCCESS' ? colors.success : colors.warning }]}>
+                    +₹{item.amount}
+                  </Text>
+                </GlassCard>
+              </Animated.View>
+            ))
+          ) : (
+            <View style={styles.emptyLog}>
+              <Ionicons name="receipt-outline" size={48} color={colors.textMuted} />
+              <Text style={styles.emptyLogText}>No settlements yet</Text>
+              <Text style={styles.emptyLogSub}>Completed payouts will appear here.</Text>
+            </View>
+          )}
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -154,141 +240,186 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  header: {
-    padding: 24,
-    paddingTop: 48,
-    backgroundColor: colors.surface,
+  heroSection: {
+    paddingTop: Platform.OS === 'ios' ? 80 : 60,
+    paddingHorizontal: 24,
+    paddingBottom: 48,
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginTop: 4,
-  },
-  mainCardContainer: {
-    padding: 16,
-    marginTop: -20,
-  },
-  mainCard: {
-    padding: 24,
-    backgroundColor: colors.primary,
-    borderRadius: 20,
+  heroHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 8,
+    gap: 16,
+    marginBottom: 32,
   },
-  mainLabel: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: 14,
+  backBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroLabel: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: 'rgba(255,255,255,0.6)',
+    letterSpacing: 2,
+  },
+  heroTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: 'white',
+    letterSpacing: -0.5,
+  },
+  balanceCard: {
+    padding: 24,
+    borderRadius: 32,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+  },
+  balanceLabel: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: 'rgba(255,255,255,0.6)',
+    letterSpacing: 2,
     marginBottom: 8,
   },
-  mainValue: {
+  balanceValue: {
+    fontSize: 48,
+    fontWeight: '900',
     color: 'white',
-    fontSize: 36,
-    fontWeight: 'bold',
-    marginBottom: 20,
+    letterSpacing: -2,
+    marginBottom: 24,
   },
-  withdrawButton: {
-    backgroundColor: 'white',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
+  withdrawBtn: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    width: '100%',
   },
-  withdrawButtonText: {
-    color: colors.primary,
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
-  statsGrid: {
+  withdrawGrad: {
     flexDirection: 'row',
-    padding: 16,
-    gap: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
   },
-  statBox: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
+  withdrawBtnText: {
+    color: colors.primary,
+    fontSize: 16,
+    fontWeight: '900',
   },
-  statLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginBottom: 4,
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-  },
-  chartSection: {
-    padding: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-    marginBottom: 16,
+  chartLabel: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: 'rgba(255,255,255,0.6)',
+    letterSpacing: 2,
+    marginBottom: 12,
+    marginLeft: 4,
   },
   chart: {
-    borderRadius: 16,
-    marginVertical: 8,
+    borderRadius: 20,
+    marginLeft: -12,
   },
-  sectionHeader: {
-    paddingHorizontal: 16,
-    marginTop: 16,
-  },
-  historyList: {
-    padding: 16,
-  },
-  historyItem: {
+  statsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 12,
+    gap: 16,
+    padding: 24,
+    paddingTop: 32,
+    marginTop: -20,
+  },
+  halfTile: {
+    flex: 1,
+  },
+  statTile: {
+    padding: 20,
+    borderRadius: 28,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  historyIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.background,
-    justifyContent: 'center',
+  statIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
     alignItems: 'center',
-    marginRight: 16,
+    justifyContent: 'center',
+    marginBottom: 12,
   },
-  historyInfo: {
-    flex: 1,
-  },
-  historyTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+  statVal: {
+    fontSize: 20,
+    fontWeight: '900',
     color: colors.textPrimary,
   },
-  historyDate: {
+  statLbl: {
+    fontSize: 8,
+    fontWeight: '900',
+    color: colors.textMuted,
+    letterSpacing: 1,
+    marginTop: 4,
+  },
+  section: {
+    paddingHorizontal: 24,
+    paddingBottom: 60,
+  },
+  sectionTitle: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: colors.textMuted,
+    letterSpacing: 2,
+    marginBottom: 16,
+    marginLeft: 4,
+  },
+  settlementCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 12,
+  },
+  settlementIconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  settlementInfo: {
+    flex: 1,
+  },
+  settlementTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  settlementDate: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: colors.textMuted,
+    fontWeight: '600',
     marginTop: 2,
   },
-  historyAmount: {
+  settlementAmount: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '900',
   },
-  emptyText: {
-    textAlign: 'center',
+  emptyLog: {
+    alignItems: 'center',
+    paddingVertical: 60,
+    gap: 12,
+  },
+  emptyLogText: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  emptyLogSub: {
+    fontSize: 14,
     color: colors.textMuted,
-    marginTop: 20,
-    fontStyle: 'italic',
+    fontWeight: '600',
   },
 });

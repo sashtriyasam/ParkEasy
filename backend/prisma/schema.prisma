@@ -25,7 +25,18 @@ model User {
   monthly_passes     MonthlyPass[]
   vehicles           Vehicle[]
   favorites          Favorite[]
+  refresh_tokens     RefreshToken[]
   @@map("users")
+}
+model RefreshToken {
+  id         String   @id @default(uuid())
+  token_hash String   @unique
+  user_id    String
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  expires_at DateTime
+  created_at DateTime @default(now())
+  @@index([user_id])
+  @@map("refresh_tokens")
 }
 
 model ParkingFacility {
@@ -128,6 +139,7 @@ model PricingRule {
   hourly_rate        Decimal
   daily_max          Decimal?
   monthly_pass_price Decimal?
+  @@unique([facility_id, vehicle_type])
   @@map("pricing_rules")
 }
 

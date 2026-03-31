@@ -8,11 +8,13 @@ import {
   TouchableOpacity, 
   Dimensions, 
   Platform,
-  ActivityIndicator
+  ActivityIndicator,
+  StatusBar
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import { LinearGradient } from 'expo-linear-gradient';
 import MapView, { Marker, Callout, PROVIDER_GOOGLE } from 'react-native-maps';
 import Animated, { 
   useSharedValue, 
@@ -20,7 +22,9 @@ import Animated, {
   withRepeat, 
   withTiming, 
   withSequence,
-  interpolate
+  interpolate,
+  useAnimatedScrollHandler,
+  Extrapolate
 } from 'react-native-reanimated';
 import { ParkingFacilityCard } from '../../components/ParkingFacilityCard';
 import { get } from '../../services/api';
@@ -29,16 +33,23 @@ import { ParkingFacility } from '../../types';
 import { EmptyState } from '../../components/EmptyState';
 import { useAuthStore } from '../../store/authStore';
 import { mapAppearance } from '../../constants/mapAppearance';
+import { GlassCard } from '../../components/ui/GlassCard';
+import { Skeleton } from '../../components/ui/SkeletonLoader';
 
 const { width, height } = Dimensions.get('window');
+const HEADER_MAX_HEIGHT = 240;
+const HEADER_MIN_HEIGHT = 100;
+const HEADER_SCROLL_DISTANCE = HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT;
 
 export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
   const mapRef = useRef<MapView>(null);
   
-  // Animation for pulsing markers
+  // Animations
+  const scrollY = useSharedValue(0);
   const pulse = useSharedValue(1);
+
   useEffect(() => {
     pulse.value = withRepeat(
       withSequence(
@@ -49,6 +60,36 @@ export default function HomeScreen() {
       true
     );
   }, []);
+
+  const scrollHandler = useAnimatedScrollHandler((event) => {
+    scrollY.value = event.contentOffset.y;
+  });
+
+  const headerStyle = useAnimatedStyle(() => {
+    const height = interpolate(
+      scrollY.value,
+      [0, HEADER_SCROLL_DISTANCE],
+      [HEADER_MAX_HEIGHT, HEADER_MIN_HEIGHT],
+      Extrapolate.CLAMP
+    );
+    return { height, borderBottomLeftRadius: interpolate(scrollY.value, [0, HEADER_SCROLL_DISTANCE], [40, 0], Extrapolate.CLAMP) };
+  });
+
+  const headerTitleStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(
+      scrollY.value,
+      [0, HEADER_SCROLL_DISTANCE / 2, HEADER_SCROLL_DISTANCE],
+      [1, 0.3, 0],
+      Extrapolate.CLAMP
+    );
+    const scale = interpolate(
+      scrollY.value,
+      [0, HEADER_SCROLL_DISTANCE],
+      [1, 0.8],
+      Extrapolate.CLAMP
+    );
+    return { opacity, transform: [{ scale }] };
+  });
 
   const animatedMarkerStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulse.value }],
@@ -73,14 +114,14 @@ export default function HomeScreen() {
       
       const recentRes = await get('/customer/tickets');
       const tickets = recentRes.data.data || [];
-      const uniqueIds = new Set();
       const recents: ParkingFacility[] = [];
-      tickets.forEach((t: any) => {
-        if (!uniqueIds.has(t.facility.id) && recents.length < 3) {
-          uniqueIds.add(t.facility.id);
+      const seen = new Set();
+      for (const t of tickets) {
+        if (t.facility && !seen.has(t.facility.id) && recents.length < 3) {
+          seen.add(t.facility.id);
           recents.push(t.facility);
         }
-      });
+      }
       setRecentFacilities(recents);
     } catch (e) {
       console.error('Error fetching facilities', e);
@@ -137,6 +178,13 @@ export default function HomeScreen() {
     return 'Good Evening';
   };
 
+  const categories = [
+    { title: 'Airport', icon: 'airplane', color: '#6366F1' },
+    { title: 'Mall', icon: 'cart', color: '#EC4899' },
+    { title: 'Office', icon: 'business', color: '#10B981' },
+    { title: 'Hospital', icon: 'medkit', color: '#EF4444' },
+  ];
+
   const renderMapView = () => (
     <View style={styles.mapContainer}>
       <MapView
@@ -160,7 +208,6 @@ export default function HomeScreen() {
               latitude: Number(facility.latitude),
               longitude: Number(facility.longitude),
             }}
-            onPress={() => {}}
           >
             <Animated.View style={[styles.customMarker, animatedMarkerStyle]}>
               <View style={styles.markerPriceContainer}>
@@ -196,14 +243,13 @@ export default function HomeScreen() {
       </TouchableOpacity>
 
       <View style={styles.mapOverlayTop}>
-        <TouchableOpacity 
+        <GlassCard 
           style={styles.searchBarFloating}
           onPress={() => router.push('/(customer)/search')}
-          activeOpacity={0.9}
         >
-          <Ionicons name="search" size={20} color={colors.textMuted} />
+          <Ionicons name="search" size={20} color={colors.textSecondary} />
           <Text style={styles.searchText}>Search for parking...</Text>
-        </TouchableOpacity>
+        </GlassCard>
       </View>
 
       <View style={styles.mapOverlayBottom}>
@@ -211,6 +257,8 @@ export default function HomeScreen() {
           horizontal 
           showsHorizontalScrollIndicator={false} 
           contentContainerStyle={styles.horizontalFacilities}
+          snapToInterval={width * 0.8 + 16}
+          decelerationRate="fast"
         >
           {nearbyFacilities.map((facility) => (
             <ParkingFacilityCard 
@@ -227,86 +275,134 @@ export default function HomeScreen() {
   );
 
   const renderListView = () => (
-    <ScrollView 
-      style={styles.scrollContainer}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />}
-    >
-      <View style={styles.header}>
-        <Text style={styles.greeting}>{getGreeting()}, {user?.name?.split(' ')[0] || 'User'}</Text>
-        <Text style={styles.title}>Where are you parking today?</Text>
+    <View style={styles.listContainer}>
+      <Animated.View style={[styles.header, headerStyle]}>
+        <LinearGradient
+          colors={colors.gradients.premium}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        <Animated.View style={[styles.headerContent, headerTitleStyle]}>
+          <Text style={styles.greeting}>{getGreeting()}, {user?.name?.split(' ')[0] || 'User'}</Text>
+          <Text style={styles.title}>Where are you{'\n'}parking today?</Text>
+        </Animated.View>
         
-        <TouchableOpacity 
-          style={styles.searchBar}
-          onPress={() => router.push('/(customer)/search')}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="search" size={20} color={colors.textMuted} />
-          <Text style={styles.searchText}>Search for parking...</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Nearby Locations</Text>
-          <TouchableOpacity onPress={() => setViewMode('map')}>
-            <Text style={styles.seeAll}>Show Map</Text>
-          </TouchableOpacity>
+        <View style={styles.searchContainer}>
+          <GlassCard 
+            style={styles.searchBar}
+            onPress={() => router.push('/(customer)/search')}
+          >
+            <Ionicons name="search" size={20} color={colors.textPrimary} />
+            <Text style={styles.searchText}>Search for parking...</Text>
+          </GlassCard>
         </View>
-        
-        {loading ? (
-          <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} />
-        ) : nearbyFacilities.length > 0 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.listContent}>
-            {nearbyFacilities.map((facility) => (
-              <ParkingFacilityCard 
-                key={facility.id} 
-                facility={facility} 
-                onPress={() => router.push(`/(customer)/facility/${facility.id}`)}
-                distance={facility.distance}
-              />
+      </Animated.View>
+
+      <Animated.ScrollView 
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+      >
+        <View style={styles.categorySection}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryList}>
+            {categories.map((cat, idx) => (
+              <TouchableOpacity key={idx} style={styles.categoryItem} activeOpacity={0.7}>
+                <View style={[styles.categoryIcon, { backgroundColor: cat.color + '15' }]}>
+                  <Ionicons name={cat.icon as any} size={24} color={cat.color} />
+                </View>
+                <Text style={styles.categoryTitle}>{cat.title}</Text>
+              </TouchableOpacity>
             ))}
           </ScrollView>
-        ) : (
-          <EmptyState
-            icon="location-outline"
-            title="None nearby"
-            subtitle="We couldn't find any facilities in your immediate area."
-            actionLabel="Search Everywhere"
-            onAction={() => router.push('/(customer)/search')}
-          />
-        )}
-      </View>
-
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Recents</Text>
         </View>
-        
-        {loading ? (
-           <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} />
-        ) : recentFacilities.length > 0 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.listContent}>
-            {recentFacilities.map((facility, index) => (
-              <ParkingFacilityCard 
-                key={`${facility.id}-${index}`} 
-                facility={facility} 
-                onPress={() => router.push(`/(customer)/facility/${facility.id}`)}
-              />
-            ))}
-          </ScrollView>
-        ) : (
-          <EmptyState
-            icon="time-outline"
-            title="No history"
-            subtitle="Your recently visited parking spots will show up here."
-          />
-        )}
-      </View>
-    </ScrollView>
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Nearby Locations</Text>
+            <TouchableOpacity onPress={() => setViewMode('map')}>
+              <Text style={styles.seeAll}>Show Map</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {loading ? (
+            <View style={styles.listContent}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 16 }}>
+                {[1, 2, 3].map((i) => (
+                  <View key={i} style={{ width: 290, gap: 12 }}>
+                    <Skeleton width={290} height={140} borderRadius={24} />
+                    <Skeleton width={200} height={20} />
+                    <Skeleton width={150} height={15} />
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+          ) : nearbyFacilities.length > 0 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.listContent}>
+              {nearbyFacilities.map((facility) => (
+                <ParkingFacilityCard 
+                  key={facility.id} 
+                  facility={facility} 
+                  onPress={() => router.push(`/(customer)/facility/${facility.id}`)}
+                  distance={facility.distance}
+                />
+              ))}
+            </ScrollView>
+          ) : (
+            <EmptyState
+              icon="location-outline"
+              title="None nearby"
+              subtitle="We couldn't find any facilities in your immediate area."
+              actionLabel="Search Everywhere"
+              onAction={() => router.push('/(customer)/search')}
+            />
+          )}
+        </View>
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Recent Activity</Text>
+          </View>
+          
+          {loading ? (
+             <View style={styles.listContent}>
+               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 16 }}>
+                 {[1, 2, 3].map((i) => (
+                   <View key={i} style={{ width: 290, gap: 12 }}>
+                     <Skeleton width={290} height={100} borderRadius={24} />
+                     <Skeleton width={180} height={18} />
+                   </View>
+                 ))}
+               </ScrollView>
+             </View>
+          ) : recentFacilities.length > 0 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.listContent}>
+              {recentFacilities.map((facility, index) => (
+                <ParkingFacilityCard 
+                  key={`${facility.id}-${index}`} 
+                  facility={facility} 
+                  onPress={() => router.push(`/(customer)/facility/${facility.id}`)}
+                />
+              ))}
+            </ScrollView>
+          ) : (
+            <EmptyState
+              icon="time-outline"
+              title="No history"
+              subtitle="Your recently visited parking spots will show up here."
+            />
+          )}
+        </View>
+        <View style={{ height: 100 }} />
+      </Animated.ScrollView>
+    </View>
   );
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle={viewMode === 'list' ? 'light-content' : 'dark-content'} />
       {viewMode === 'list' ? renderListView() : renderMapView()}
       
       <TouchableOpacity 
@@ -326,67 +422,95 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  listContainer: {
+    flex: 1,
+  },
   scrollContainer: {
     flex: 1,
   },
+  scrollContent: {
+    paddingTop: HEADER_MAX_HEIGHT + 20,
+  },
   header: {
-    padding: 24,
-    backgroundColor: colors.surface,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    overflow: 'hidden',
+  },
+  headerContent: {
     paddingTop: 60,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 5,
+    paddingHorizontal: 24,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-    marginBottom: 20,
+    fontSize: 32,
+    fontWeight: '900',
+    color: 'white',
+    lineHeight: 38,
+    letterSpacing: -1,
   },
   greeting: {
     fontSize: 14,
-    color: colors.primary,
+    color: 'rgba(255, 255, 255, 0.8)',
     fontWeight: '700',
-    marginBottom: 4,
+    marginBottom: 8,
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 1.5,
+  },
+  searchContainer: {
+    position: 'absolute',
+    bottom: -25,
+    left: 24,
+    right: 24,
+    zIndex: 20,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.background,
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
+    padding: 16,
+    borderRadius: 20,
     gap: 12,
   },
   searchBarFloating: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.glassSurface,
     padding: 16,
-    borderRadius: 20,
+    borderRadius: 24,
     width: width - 48,
-    borderWidth: 1,
-    borderColor: colors.glassBorder,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 8,
     gap: 12,
   },
   searchText: {
-    color: colors.textMuted,
+    color: colors.textSecondary,
     fontSize: 16,
+    fontWeight: '500',
+  },
+  categorySection: {
+    marginTop: 20,
+    paddingHorizontal: 24,
+  },
+  categoryList: {
+    gap: 20,
+    paddingVertical: 10,
+  },
+  categoryItem: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  categoryIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  categoryTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
   },
   section: {
-    marginTop: 28,
+    marginTop: 32,
   },
   sectionHeader: {
     paddingHorizontal: 24,
@@ -396,14 +520,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: 22,
+    fontWeight: '900',
     color: colors.textPrimary,
+    letterSpacing: -0.5,
   },
   seeAll: {
     fontSize: 14,
     color: colors.primary,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   listContent: {
     paddingHorizontal: 24,
@@ -416,20 +541,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.primary,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 30,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 10,
-    gap: 10,
+    paddingVertical: 16,
+    paddingHorizontal: 28,
+    borderRadius: 35,
+    ...colors.shadows.premium,
+    gap: 12,
   },
   toggleText: {
     color: 'white',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '900',
   },
   mapContainer: {
     flex: 1,
@@ -446,7 +567,7 @@ const styles = StyleSheet.create({
   },
   mapOverlayBottom: {
     position: 'absolute',
-    bottom: 110,
+    bottom: 120,
     left: 0,
     right: 0,
   },
@@ -455,41 +576,34 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   horizontalCard: {
-    width: width * 0.75,
+    width: width * 0.8,
     marginRight: 0,
   },
   myLocationButton: {
     position: 'absolute',
     right: 20,
-    top: 130,
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    top: 140,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
+    ...colors.shadows.md,
   },
   customMarker: {
     alignItems: 'center',
   },
   markerPriceContainer: {
     backgroundColor: colors.primary,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 2,
     borderColor: 'white',
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    ...colors.shadows.md,
   },
   markerCurrency: {
     color: 'white',
@@ -500,7 +614,7 @@ const styles = StyleSheet.create({
   markerPrice: {
     color: 'white',
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '900',
   },
   markerArrow: {
     width: 0,
@@ -514,17 +628,14 @@ const styles = StyleSheet.create({
     marginTop: -2,
   },
   callout: {
-    width: 200,
+    width: 220,
   },
   calloutContainer: {
     backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: 16,
+    padding: 16,
     width: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+    ...colors.shadows.lg,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -541,14 +652,15 @@ const styles = StyleSheet.create({
   calloutFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 12,
     justifyContent: 'flex-end',
     gap: 4,
   },
   calloutAction: {
     fontSize: 12,
     color: colors.primary,
-    fontWeight: '700',
+    fontWeight: '800',
   }
 });
+;
 

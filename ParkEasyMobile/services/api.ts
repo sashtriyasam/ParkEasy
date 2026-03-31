@@ -1,7 +1,8 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://parkeasy-backend.up.railway.app/api/v1';
+// TODO: Update EXPO_PUBLIC_API_URL in .env to point to new Koyeb URL after migration
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://YOUR-APP.koyeb.app/api/v1';
 
 const apiClient = axios.create({
   baseURL: API_URL,

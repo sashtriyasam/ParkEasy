@@ -1,24 +1,30 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Dimensions, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { FadeInDown, FadeInRight, FadeIn, Layout } from 'react-native-reanimated';
 import { get } from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import { Button } from './ui/Button';
-import { Card } from './ui/Card';
+import { GlassCard } from './ui/GlassCard';
+import { Skeleton } from './ui/SkeletonLoader';
 import { colors } from '../constants/colors';
+
+const { width } = Dimensions.get('window');
 
 export function ProfileScreen() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
-  const userName = user?.full_name || user?.name || 'User';
+  const userName = user?.full_name || 'User';
   const role = user?.role?.toUpperCase() || 'CUSTOMER';
   const isProvider = role === 'PROVIDER';
 
-  const [stats, setStats] = React.useState<any>(null);
-  const [loading, setLoading] = React.useState(true);
+  const [stats, setStats] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const fetchStats = async () => {
       try {
         const endpoint = isProvider ? '/provider/dashboard/stats' : '/customer/stats';
@@ -33,8 +39,20 @@ export function ProfileScreen() {
     fetchStats();
   }, [isProvider]);
 
+  const handleWalletAction = () => {
+    if (isProvider) {
+      router.push('/(provider)/earnings');
+    } else {
+      Alert.alert(
+        "Wallet Feature",
+        "Digital wallet top-ups are coming soon. You can currently pay for bookings directly via UPI/Card in the booking flow.",
+        [{ text: "OK" }]
+      );
+    }
+  };
+
   const handleLogout = async () => {
-    Alert.alert('Logout', 'Are you sure you want to log out?', [
+    Alert.alert('Logout', 'Are you sure you want to log out of ParkEasy?', [
       { text: 'Cancel', style: 'cancel' },
       { 
         text: 'Logout', 
@@ -50,185 +68,183 @@ export function ProfileScreen() {
   const renderStats = () => {
     if (loading || !stats) {
       return (
-        <View style={styles.statsRow}>
-          <Text style={{ color: 'white', opacity: 0.6 }}>Loading stats...</Text>
+        <View style={styles.statsSkeleton}>
+          <Skeleton width="100%" height={80} borderRadius={24} />
         </View>
       );
     }
 
-    if (isProvider) {
-      return (
-        <View style={styles.statsRow}>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>₹{(stats.revenue?.month || 0) / 1000}k</Text>
-            <Text style={styles.statLabel}>Revenue</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{stats.active_bookings || 0}</Text>
-            <Text style={styles.statLabel}>Active</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{stats.occupancy || 0}%</Text>
-            <Text style={styles.statLabel}>Occupancy</Text>
-          </View>
-        </View>
-      );
-    }
+    const statItems = isProvider ? [
+      { label: 'Revenue', value: `₹${(stats.revenue?.month || 0) / 1000}k`, icon: 'cash-outline' },
+      { label: 'Active', value: stats.active_bookings || 0, icon: 'flash-outline' },
+      { label: 'Occupancy', value: `${stats.occupancy || 0}%`, icon: 'business-outline' },
+    ] : [
+      { label: 'Bookings', value: stats.bookings || 0, icon: 'ticket-outline' },
+      { label: 'Parked', value: `${stats.parked_hours || 0}h`, icon: 'time-outline' },
+      { label: 'Saved', value: `₹${stats.savings || 0}`, icon: 'wallet-outline' },
+    ];
+
     return (
-      <View style={styles.statsRow}>
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>{stats.bookings || 0}</Text>
-          <Text style={styles.statLabel}>Bookings</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>{stats.parked_hours || 0}h</Text>
-          <Text style={styles.statLabel}>Parked</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>₹{stats.savings || 0}</Text>
-          <Text style={styles.statLabel}>Saved</Text>
-        </View>
-      </View>
+      <Animated.View entering={FadeInDown.delay(200).duration(600)} style={styles.statsRow}>
+        {statItems.map((item, index) => (
+          <React.Fragment key={item.label}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{item.value}</Text>
+              <Text style={styles.statLabel}>{item.label}</Text>
+            </View>
+            {index < statItems.length - 1 && <View style={styles.statDivider} />}
+          </React.Fragment>
+        ))}
+      </Animated.View>
     );
   };
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Premium Header */}
-      <View style={styles.headerGradient}>
-        <View style={styles.headerContent}>
-          <View style={styles.headerTop}>
-            <View style={styles.avatarWrapper}>
+    <View style={styles.container}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        {/* Immersive Header */}
+        <LinearGradient
+          colors={[colors.primary, colors.primaryDark]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerPlate}
+        >
+          <View style={styles.headerOverlay}>
+            <View style={styles.avatarContainer}>
+              <Animated.View entering={FadeIn.duration(800)} style={styles.avatarGlow} />
               <View style={styles.avatarInner}>
                 <Text style={styles.avatarText}>{userName.charAt(0)}</Text>
               </View>
-              <TouchableOpacity style={styles.editAvatarBtn}>
-                <Ionicons name="camera" size={16} color="white" />
+              <TouchableOpacity style={styles.editBadge} activeOpacity={0.8}>
+                <Ionicons name="camera" size={14} color={colors.primary} />
               </TouchableOpacity>
             </View>
-            <View style={styles.userInfo}>
-              <Text style={styles.name}>{userName}</Text>
-              <View style={styles.roleContainer}>
-                <Text style={styles.roleText}>{role}</Text>
-                <Ionicons name="shield-checkmark" size={14} color={colors.primary} />
+            
+            <View style={styles.userTextContainer}>
+              <Text style={styles.userName}>{userName}</Text>
+              <View style={styles.roleTag}>
+                <Ionicons name="shield-checkmark" size={12} color="white" />
+                <Text style={styles.roleLabel}>{role}</Text>
               </View>
             </View>
-          </View>
-          {renderStats()}
-        </View>
-      </View>
 
-      {/* Wallet / Earnings Card */}
-      <View style={styles.content}>
-        <TouchableOpacity style={styles.walletCard} activeOpacity={0.9}>
-          <View style={styles.walletInfo}>
-            <Text style={styles.walletLabel}>{isProvider ? 'Earnings' : 'Wallet Balance'}</Text>
-            <Text style={styles.walletBalance}>₹{isProvider ? '12,450' : '420.00'}</Text>
+            {renderStats()}
           </View>
-          <TouchableOpacity style={styles.walletAction}>
-            <Text style={styles.walletActionText}>{isProvider ? 'Withdraw' : 'Top Up'}</Text>
-            <Ionicons name="arrow-forward" size={16} color="white" />
+        </LinearGradient>
+
+        <View style={styles.mainContent}>
+          {/* Action Cards */}
+          <Animated.View entering={FadeInDown.delay(400).springify()}>
+            <TouchableOpacity activeOpacity={0.9}>
+              <GlassCard style={styles.walletCard} intensity={40}>
+                <View style={styles.walletHeader}>
+                  <View style={styles.walletIconBox}>
+                    <Ionicons name="wallet" size={24} color={colors.primary} />
+                  </View>
+                  <View style={styles.walletTitleBox}>
+                    <Text style={styles.walletLabel}>{isProvider ? 'TOTAL EARNINGS' : 'WALLET BALANCE'}</Text>
+                    <Text style={styles.walletAmount}>₹{isProvider ? (stats?.revenue?.total || '12,450') : (stats?.wallet?.balance || '420.00')}</Text>
+                  </View>
+                  <Button 
+                    label={isProvider ? "Withdraw" : "Add Funds"} 
+                    onPress={handleWalletAction} 
+                    size="sm" 
+                    variant="primary"
+                    style={styles.walletBtn}
+                  />
+                </View>
+              </GlassCard>
+            </TouchableOpacity>
+          </Animated.View>
+
+          <Section title="Account Settings">
+            <MenuOption 
+              icon="person" 
+              label="Personal Information" 
+              onPress={() => router.push('/settings/personal-info')} 
+            />
+            <MenuOption 
+              icon={isProvider ? "business" : "car"} 
+              label={isProvider ? "Managed Facilities" : "My Vehicles"} 
+              onPress={() => router.push(isProvider ? '/(provider)/(tabs)' : '/vehicles')} 
+            />
+            <MenuOption 
+              icon="card" 
+              label="Payment Methods" 
+              onPress={() => router.push('/payments')} 
+            />
+            <MenuOption 
+              icon="notifications" 
+              label="Notifications" 
+              isLast
+            />
+          </Section>
+
+          <Section title="Experiences">
+            <MenuOption 
+              icon="moon" 
+              label="Dark Appearance" 
+              value="System"
+            />
+            <MenuOption 
+              icon="language" 
+              label="Language" 
+              value="English (IN)" 
+              isLast
+            />
+          </Section>
+
+          <Section title="Legal & Support">
+            <MenuOption icon="help-circle" label="Help Center" onPress={() => router.push('/(customer)/support/faq')} />
+            <MenuOption icon="chatbubble-ellipses" label="Contact Support" onPress={() => router.push('/(customer)/support/contact')} />
+            <MenuOption icon="document-text" label="Terms of Service" isLast />
+          </Section>
+
+          <TouchableOpacity style={styles.logoutAction} onPress={handleLogout} activeOpacity={0.7}>
+            <LinearGradient
+              colors={[colors.danger + '10', colors.danger + '05']}
+              style={styles.logoutGrad}
+            >
+              <Ionicons name="log-out" size={20} color={colors.danger} />
+              <Text style={styles.logoutLabel}>Secure Sign Out</Text>
+            </LinearGradient>
           </TouchableOpacity>
-        </TouchableOpacity>
 
-        <Text style={styles.sectionTitle}>Account Settings</Text>
-        <View style={styles.glassMenu}>
-          <MenuOption 
-            icon="person-outline" 
-            label="Personal Information" 
-            onPress={() => router.push('/settings/personal-info')} 
-          />
-          <MenuOption 
-            icon="car-outline" 
-            label={isProvider ? "Managed Facilities" : "My Vehicles"} 
-            onPress={() => router.push(isProvider ? '/(provider)/(tabs)' : '/vehicles')} 
-          />
-          <MenuOption 
-            icon="card-outline" 
-            label="Payment Methods" 
-            onPress={() => router.push('/payments')} 
-          />
-          <MenuOption 
-            icon="notifications-outline" 
-            label="Notifications" 
-            onPress={() => Alert.alert('Coming Soon', 'Notification settings will be available in the next update.')} 
-          />
-          <MenuOption 
-            icon="lock-closed-outline" 
-            label="Secure Access" 
-            onPress={() => Alert.alert('Coming Soon', 'Advanced security settings are currently being finalized.')} 
-            isLast 
-          />
+          <Text style={styles.versionTag}>ParkEasy Premium Edition v2.4.0</Text>
+          <View style={{ height: 40 }} />
         </View>
-
-        <Text style={styles.sectionTitle}>Preferences</Text>
-        <View style={styles.glassMenu}>
-          <MenuOption 
-            icon="moon-outline" 
-            label="Dark Mode" 
-            onPress={() => {}} 
-            toggle 
-          />
-          <MenuOption 
-            icon="language-outline" 
-            label="Language" 
-            onPress={() => {}} 
-            value="English" 
-            isLast 
-          />
-        </View>
-
-        <Text style={styles.sectionTitle}>Support</Text>
-        <View style={styles.glassMenu}>
-          <MenuOption 
-            icon="help-circle-outline" 
-            label="Help Center" 
-            onPress={() => router.push('/support/faq')} 
-          />
-          <MenuOption 
-            icon="chatbubbles-outline" 
-            label="Contact Support" 
-            onPress={() => router.push('/support/contact')} 
-          />
-          <MenuOption 
-            icon="document-text-outline" 
-            label="Terms of Service" 
-            onPress={() => Alert.alert('Legal', 'Standard ParkEasy terms apply. Document available on our website.')} 
-            isLast 
-          />
-        </View>
-
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={20} color={colors.error} />
-          <Text style={styles.logoutText}>Sign Out from ParkEasy</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.version}>ParkEasy Premium v2.4.0 (Production)</Text>
-        <View style={{ height: 40 }} />
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
-function MenuOption({ icon, label, onPress, isLast, value, toggle }: any) {
+function Section({ title, children }: { title: string, children: React.ReactNode }) {
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <GlassCard style={styles.sectionCard} intensity={20}>
+        {children}
+      </GlassCard>
+    </View>
+  );
+}
+
+function MenuOption({ icon, label, onPress, isLast, value }: any) {
   return (
     <TouchableOpacity 
-      style={[styles.menuItem, !isLast && styles.menuItemBorder]} 
+      style={[styles.menuItem, !isLast && styles.menuBorder]} 
       onPress={onPress}
+      activeOpacity={0.6}
     >
-      <View style={styles.menuItemLeft}>
-        <View style={styles.menuIconBox}>
-          <Ionicons name={icon} size={20} color={colors.primary} />
+      <View style={styles.menuLeft}>
+        <View style={[styles.menuIconContainer, { backgroundColor: colors.primary + '10' }]}>
+          <Ionicons name={icon as any} size={18} color={colors.primary} />
         </View>
         <Text style={styles.menuLabel}>{label}</Text>
       </View>
-      <View style={styles.menuItemRight}>
+      <View style={styles.menuRight}>
         {value && <Text style={styles.menuValue}>{value}</Text>}
-        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+        <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
       </View>
     </TouchableOpacity>
   );
@@ -239,227 +255,235 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  headerGradient: {
-    backgroundColor: colors.primary,
-    paddingTop: 60,
-    paddingBottom: 30,
+  scrollContent: {
+    flexGrow: 1,
+  },
+  headerPlate: {
+    paddingTop: Platform.OS === 'ios' ? 80 : 60,
+    paddingBottom: 40,
     borderBottomLeftRadius: 40,
     borderBottomRightRadius: 40,
-    ...colors.shadows.lg,
+    overflow: 'hidden',
   },
-  headerContent: {
+  headerOverlay: {
+    alignItems: 'center',
     paddingHorizontal: 24,
   },
-  headerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 30,
-  },
-  avatarWrapper: {
+  avatarContainer: {
+    marginBottom: 20,
     position: 'relative',
-    marginRight: 20,
+  },
+  avatarGlow: {
+    position: 'absolute',
+    top: -10,
+    left: -10,
+    right: -10,
+    bottom: -10,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
   avatarInner: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.4)',
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: 'rgba(255,255,255,0.25)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 3,
+    borderColor: 'white',
   },
   avatarText: {
-    fontSize: 32,
-    fontWeight: '800',
+    fontSize: 40,
+    fontWeight: '900',
     color: 'white',
   },
-  editAvatarBtn: {
+  editBadge: {
     position: 'absolute',
     bottom: 0,
     right: 0,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.surface,
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: 'white',
+    padding: 8,
+    borderRadius: 15,
     ...colors.shadows.sm,
   },
-  userInfo: {
-    flex: 1,
+  userTextContainer: {
+    alignItems: 'center',
+    marginBottom: 32,
   },
-  name: {
-    fontSize: 24,
-    fontWeight: 'bold',
+  userName: {
+    fontSize: 28,
+    fontWeight: '900',
     color: 'white',
-    marginBottom: 6,
+    letterSpacing: -0.5,
   },
-  roleContainer: {
+  roleTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    paddingHorizontal: 12,
     paddingVertical: 4,
-    borderRadius: 20,
+    borderRadius: 12,
+    marginTop: 8,
+    gap: 4,
   },
-  roleText: {
+  roleLabel: {
     fontSize: 12,
     fontWeight: '800',
-    color: colors.primary,
+    color: 'white',
+    letterSpacing: 1,
   },
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(255,255,255,0.12)',
     borderRadius: 24,
     padding: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    width: '100%',
+  },
+  statsSkeleton: {
+    width: '100%',
   },
   statItem: {
     flex: 1,
     alignItems: 'center',
   },
   statValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 22,
+    fontWeight: '900',
     color: 'white',
-    marginBottom: 2,
   },
   statLabel: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.8)',
-    fontWeight: '600',
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.7)',
+    textTransform: 'uppercase',
+    marginTop: 2,
   },
   statDivider: {
     width: 1,
     height: 30,
     backgroundColor: 'rgba(255,255,255,0.2)',
   },
-  content: {
-    padding: 20,
+  mainContent: {
+    padding: 24,
   },
   walletCard: {
-    marginTop: -20,
+    marginTop: -45,
+    borderRadius: 32,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: 'white',
+    ...colors.shadows.md,
+  },
+  walletHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.surface,
-    padding: 24,
-    borderRadius: 24,
-    marginBottom: 30,
-    ...colors.shadows.md,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
-  walletInfo: {
+  walletIconBox: {
+    width: 50,
+    height: 50,
+    borderRadius: 16,
+    backgroundColor: colors.primary + '10',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  walletTitleBox: {
     flex: 1,
   },
   walletLabel: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    fontWeight: '600',
-    marginBottom: 4,
+    fontSize: 10,
+    fontWeight: '900',
+    color: colors.textMuted,
+    letterSpacing: 1,
   },
-  walletBalance: {
-    fontSize: 28,
-    fontWeight: '800',
+  walletAmount: {
+    fontSize: 24,
+    fontWeight: '900',
     color: colors.textPrimary,
   },
-  walletAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primary,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 14,
-    gap: 6,
+  walletBtn: {
+    minWidth: 100,
   },
-  walletActionText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: 'bold',
+  section: {
+    marginTop: 32,
   },
   sectionTitle: {
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '900',
     color: colors.textMuted,
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 1.5,
     marginBottom: 16,
-    marginLeft: 4,
+    marginLeft: 8,
   },
-  glassMenu: {
-    backgroundColor: colors.surface,
-    borderRadius: 24,
-    marginBottom: 30,
+  sectionCard: {
+    borderRadius: 30,
+    overflow: 'hidden',
     borderWidth: 1,
     borderColor: colors.border,
-    overflow: 'hidden',
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
+    padding: 20,
   },
-  menuItemBorder: {
+  menuBorder: {
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  menuItemLeft: {
+  menuLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
   },
-  menuIconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: colors.primary + '10',
-    justifyContent: 'center',
+  menuIconContainer: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
   },
   menuLabel: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: colors.textPrimary,
   },
-  menuItemRight: {
+  menuRight: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
   menuValue: {
     fontSize: 14,
+    fontWeight: '600',
     color: colors.textMuted,
-    fontWeight: '500',
   },
-  logoutBtn: {
+  logoutAction: {
+    marginTop: 40,
+    borderRadius: 24,
+    overflow: 'hidden',
+  },
+  logoutGrad: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 18,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.error + '40',
-    backgroundColor: colors.error + '05',
-    gap: 10,
-    marginBottom: 24,
+    padding: 20,
+    gap: 12,
   },
-  logoutText: {
+  logoutLabel: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: colors.error,
+    fontWeight: '800',
+    color: colors.danger,
   },
-  version: {
+  versionTag: {
     textAlign: 'center',
     fontSize: 12,
+    fontWeight: '700',
     color: colors.textMuted,
-    fontWeight: '500',
+    marginTop: 32,
   },
 });

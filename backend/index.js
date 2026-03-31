@@ -39,6 +39,7 @@ async function startServer() {
 
         server.listen(PORT, () => {
             Logger.info(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+            Logger.info(`Swagger docs available at http://localhost:${PORT}/api-docs`);
         });
     } catch (error) {
         Logger.error('Failed to start server:', error);

@@ -1,19 +1,24 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator, TouchableOpacity, Animated } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator, TouchableOpacity, Dimensions, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+import Animated, { FadeInDown, FadeInRight, FadeInUp, Layout } from 'react-native-reanimated';
 import { get } from '../../../services/api';
-import { Card } from '../../../components/ui/Card';
+import { GlassCard } from '../../../components/ui/GlassCard';
 import { colors } from '../../../constants/colors';
 import { EmptyState } from '../../../components/EmptyState';
 import { useAuthStore } from '../../../store/authStore';
 import { useRouter } from 'expo-router';
 import { useSocket } from '../../../hooks/useSocket';
-import Svg, { Path, Circle, G, Text as SvgText } from 'react-native-svg';
+import Svg, { Path, Circle, G, Text as SvgText, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
+
+const { width } = Dimensions.get('window');
 
 const OccupancyGauge = ({ value, total }: { value: number, total: number }) => {
   const percentage = total > 0 ? (value / total) * 100 : 0;
-  const radius = 80;
-  const strokeWidth = 15;
+  const radius = 85;
+  const strokeWidth = 14;
   const center = 100;
   const circumference = 2 * Math.PI * radius;
   const halfCircumference = circumference / 2;
@@ -21,20 +26,24 @@ const OccupancyGauge = ({ value, total }: { value: number, total: number }) => {
 
   return (
     <View style={gaugeStyles.container}>
-      <Svg width="200" height="120" viewBox="0 0 200 120">
+      <Svg width="220" height="130" viewBox="0 0 200 120">
+        <Defs>
+          <SvgGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <Stop offset="0%" stopColor={colors.primary} />
+            <Stop offset="100%" stopColor={colors.primaryDark} />
+          </SvgGradient>
+        </Defs>
         <G rotation="-180" origin="100, 100">
-          {/* Background Arc */}
           <Path
             d={`M ${center - radius} ${center} A ${radius} ${radius} 0 0 1 ${center + radius} ${center}`}
-            stroke={colors.border}
+            stroke={colors.border + '40'}
             strokeWidth={strokeWidth}
             fill="none"
             strokeLinecap="round"
           />
-          {/* Progress Arc */}
           <Path
             d={`M ${center - radius} ${center} A ${radius} ${radius} 0 0 1 ${center + radius} ${center}`}
-            stroke={percentage > 85 ? colors.danger : percentage > 60 ? colors.warning : colors.success}
+            stroke="url(#gaugeGradient)"
             strokeWidth={strokeWidth}
             fill="none"
             strokeDasharray={`${halfCircumference} ${halfCircumference}`}
@@ -44,10 +53,10 @@ const OccupancyGauge = ({ value, total }: { value: number, total: number }) => {
         </G>
         <SvgText
           x="100"
-          y="90"
+          y="85"
           textAnchor="middle"
-          fontSize="24"
-          fontWeight="bold"
+          fontSize="32"
+          fontWeight="900"
           fill={colors.textPrimary}
         >
           {Math.round(percentage)}%
@@ -56,10 +65,12 @@ const OccupancyGauge = ({ value, total }: { value: number, total: number }) => {
           x="100"
           y="110"
           textAnchor="middle"
-          fontSize="12"
-          fill={colors.textSecondary}
+          fontSize="10"
+          fontWeight="800"
+          fill={colors.textMuted}
+          letterSpacing="1"
         >
-          OCCUPANCY
+          CAPACITY USED
         </SvgText>
       </Svg>
     </View>
@@ -69,7 +80,7 @@ const OccupancyGauge = ({ value, total }: { value: number, total: number }) => {
 const gaugeStyles = StyleSheet.create({
   container: {
     alignItems: 'center',
-    marginVertical: 10,
+    marginTop: 10,
   }
 });
 
@@ -106,7 +117,6 @@ export default function ProviderDashboard() {
         });
         setLastUpdate(new Date());
       } else {
-        // Handle empty but successful response
         setStats({
           activeFacilities: facilitiesRes.data?.data?.length || 0,
           activeBookings: 0,
@@ -120,7 +130,6 @@ export default function ProviderDashboard() {
         setFacilities(facilitiesRes.data.data);
       }
 
-      // Fetch recent bookings separately if needed or if it comes from dashboard
       const recentRes = await get('/provider/bookings?limit=5');
       if (recentRes.data?.data) {
         setRecentBookings(recentRes.data.data);
@@ -138,13 +147,10 @@ export default function ProviderDashboard() {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
-  // Real-time updates handler (Phase 6B)
   const { socket, isConnected, joinFacility } = useSocket();
 
   useEffect(() => {
     if (!socket || facilities.length === 0) return;
-
-    // Join all facility rooms
     facilities.forEach(f => joinFacility(f.id));
 
     const handleSlotUpdate = (payload: { status: string, facilityId: string }) => {
@@ -161,7 +167,6 @@ export default function ProviderDashboard() {
     };
 
     socket.on('slot_updated', handleSlotUpdate);
-
     return () => {
       socket.off('slot_updated', handleSlotUpdate);
     };
@@ -169,7 +174,7 @@ export default function ProviderDashboard() {
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchDashboardData();
+    fetchDashboardData(false);
   };
 
   const getGreeting = () => {
@@ -177,6 +182,12 @@ export default function ProviderDashboard() {
     if (hour < 12) return 'Good Morning';
     if (hour < 17) return 'Good Afternoon';
     return 'Good Evening';
+  };
+
+  const formatTime = (dateStr: string) => {
+    if (!dateStr) return '--:--';
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? '--:--' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   if (loading && !refreshing) {
@@ -187,156 +198,171 @@ export default function ProviderDashboard() {
     );
   }
 
+  const totalSlots = facilities.reduce((acc, f) => acc + (f.total_slots || 0), 0) || 1;
+
   return (
-    <ScrollView 
-      style={styles.container}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-    >
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <View>
-            <Text style={styles.greeting}>{getGreeting()}, {user?.name?.split(' ')[0] || 'Partner'}</Text>
-            <Text style={styles.title}>Operation Center</Text>
+    <View style={styles.mainContainer}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+        }
+      >
+        {/* Dynamic Header */}
+        <LinearGradient
+          colors={[colors.primary, colors.primaryDark]}
+          style={styles.header}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <View style={styles.headerTop}>
+            <Animated.View entering={FadeInDown.duration(800)}>
+              <Text style={styles.greeting}>{getGreeting()},</Text>
+              <Text style={styles.userName}>{user?.name?.split(' ')[0] || 'Partner'}</Text>
+            </Animated.View>
+            <TouchableOpacity 
+              onPress={() => router.push('/(provider)/scan')}
+              style={styles.scanBtn}
+            >
+              <BlurView intensity={30} tint="light" style={styles.scanIconBox}>
+                <Ionicons name="qr-code-outline" size={24} color="white" />
+              </BlurView>
+            </TouchableOpacity>
           </View>
-          <View style={[styles.connectionBadge, { backgroundColor: isConnected ? colors.success + '20' : colors.textMuted + '20' }]}>
-            <View style={[styles.connectionDot, { backgroundColor: isConnected ? colors.success : colors.textMuted }]} />
-            <Text style={[styles.connectionText, { color: isConnected ? colors.success : colors.textMuted }]}>
-              {isConnected ? 'Live' : 'Offline'}
-            </Text>
+
+          <GlassCard style={styles.mainGaugeCard} intensity={25}>
+            <OccupancyGauge value={stats.activeBookings} total={totalSlots} />
+            <View style={styles.gaugeMetrics}>
+              <View style={styles.metricItem}>
+                <Text style={styles.metricValue}>{stats.activeBookings}</Text>
+                <Text style={styles.metricLabel}>ACTIVE</Text>
+              </View>
+              <View style={styles.metricDivider} />
+              <View style={styles.metricItem}>
+                <Text style={styles.metricValue}>{Math.max(0, totalSlots - stats.activeBookings)}</Text>
+                <Text style={styles.metricLabel}>FREE</Text>
+              </View>
+              <View style={styles.metricDivider} />
+              <View style={styles.metricItem}>
+                <View style={[styles.statusDot, { backgroundColor: isConnected ? colors.success : colors.textMuted }]} />
+                <Text style={styles.metricLabel}>{isConnected ? 'LIVE' : 'IDLE'}</Text>
+              </View>
+            </View>
+          </GlassCard>
+        </LinearGradient>
+
+        <View style={styles.content}>
+          <View style={styles.statsRow}>
+            <Animated.View entering={FadeInRight.delay(200)} style={styles.halfStat}>
+              <GlassCard style={styles.statBox} intensity={10}>
+                <View style={[styles.statIconBox, { backgroundColor: colors.info + '15' }]}>
+                  <Ionicons name="business" size={24} color={colors.info} />
+                </View>
+                <Text style={styles.statMainValue}>{stats.activeFacilities}</Text>
+                <Text style={styles.statSubLabel}>FACILITIES</Text>
+              </GlassCard>
+            </Animated.View>
+
+            <Animated.View entering={FadeInRight.delay(400)} style={styles.halfStat}>
+              <GlassCard style={styles.statBox} intensity={10}>
+                <View style={[styles.statIconBox, { backgroundColor: colors.success + '15' }]}>
+                  <Ionicons name="cash" size={24} color={colors.success} />
+                </View>
+                <Text style={styles.statMainValue}>₹{stats.todayRevenue}</Text>
+                <Text style={styles.statSubLabel}>REVENUE TODAY</Text>
+              </GlassCard>
+            </Animated.View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Command Center</Text>
+            <View style={styles.actionsGrid}>
+              <ActionButton 
+                icon="add-circle" 
+                label="New Facility" 
+                bg="#FF6B6B"
+                onPress={() => router.push('/(provider)/add-facility')} 
+              />
+              <ActionButton 
+                icon="list" 
+                label="Facilities" 
+                bg="#4D96FF"
+                onPress={() => router.push('/(provider)/facilities')} 
+              />
+              <ActionButton 
+                icon="wallet" 
+                label="Payouts" 
+                bg="#6BCB77"
+                onPress={() => router.push('/(provider)/earnings')} 
+              />
+              <ActionButton 
+                icon="analytics" 
+                label="Insights" 
+                bg="#FFD93D"
+                onPress={() => router.push('/(provider)/bookings')} 
+              />
+            </View>
+          </View>
+
+          <View style={[styles.section, { marginBottom: 40 }]}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Real-time Activity</Text>
+              <TouchableOpacity onPress={() => router.push('/(provider)/bookings')}>
+                <Text style={styles.viewMore}>View All</Text>
+              </TouchableOpacity>
+            </View>
+            
+            {recentBookings.length > 0 ? (
+              recentBookings.map((booking, index) => (
+                <Animated.View key={booking.id} entering={FadeInUp.delay(index * 100)}>
+                  <GlassCard style={styles.activityCard} intensity={5}>
+                    <View style={styles.activityInfo}>
+                      <View style={styles.customerAvatar}>
+                        <Text style={styles.avatarText}>{booking.customer?.full_name?.charAt(0) || 'G'}</Text>
+                      </View>
+                      <View style={styles.activityDetails}>
+                        <Text style={styles.custName}>{booking.customer?.full_name || 'Guest'}</Text>
+                        <Text style={styles.activityFac}>
+                          {(booking.facility?.name || 'Facility')} • {booking.slot?.slot_number || 'Spot —'}
+                        </Text>
+                      </View>
+                      <View style={styles.activityPricing}>
+                        <Text style={styles.activityAmount}>+₹{booking.total_fee || booking.base_fee || 0}</Text>
+                        <Text style={styles.activityTime}>
+                          {formatTime(booking.entry_time)}
+                        </Text>
+                      </View>
+                    </View>
+                  </GlassCard>
+                </Animated.View>
+              ))
+            ) : (
+              <EmptyState
+                icon="flash-outline"
+                title="Silence in the Hub"
+                subtitle="Live bookings will appear here instantly."
+              />
+            )}
           </View>
         </View>
-        {lastUpdate && (
-          <Text style={styles.lastUpdate}>
-            Last updated: {lastUpdate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-          </Text>
-        )}
-      </View>
-      
-      <View style={styles.gaugeSection}>
-        <Card style={styles.gaugeCard}>
-          <OccupancyGauge 
-            value={stats.activeBookings} 
-            total={facilities.reduce((acc, f) => acc + (f.total_slots || 0), 0) || 100} 
-          />
-          <View style={styles.gaugeStats}>
-            <View style={styles.gaugeStatItem}>
-              <Text style={styles.gaugeStatValue}>{stats.activeBookings}</Text>
-              <Text style={styles.gaugeStatLabel}>Occupied</Text>
-            </View>
-            <View style={styles.gaugeStatDivider} />
-            <View style={styles.gaugeStatItem}>
-              <Text style={styles.gaugeStatValue}>
-                {Math.max(0, (facilities.reduce((acc, f) => acc + (f.total_slots || 0), 0) || 100) - stats.activeBookings)}
-              </Text>
-              <Text style={styles.gaugeStatLabel}>Available</Text>
-            </View>
-          </View>
-        </Card>
-      </View>
+      </ScrollView>
+    </View>
+  );
+}
 
-      <View style={styles.statsGrid}>
-        <Card style={[styles.statCard, styles.glassCard]}>
-          <View style={[styles.iconContainer, { backgroundColor: colors.primaryLight }]}>
-            <Ionicons name="business" size={24} color={colors.primary} />
-          </View>
-          <Text style={styles.statValue}>{stats.activeFacilities}</Text>
-          <Text style={styles.statLabel}>Facilities</Text>
-        </Card>
-
-        <Card style={[styles.statCard, styles.glassCard]}>
-          <View style={[styles.iconContainer, { backgroundColor: colors.success + '20' }]}>
-            <Ionicons name="cash" size={24} color={colors.success} />
-          </View>
-          <Text style={styles.statValue}>₹{stats.todayRevenue}</Text>
-          <Text style={styles.statLabel}>Today's Revenue</Text>
-        </Card>
+function ActionButton({ icon, label, onPress, bg }: any) {
+  return (
+    <TouchableOpacity style={styles.actionBtn} onPress={onPress} activeOpacity={0.8}>
+      <View style={[styles.actionIconOuter, { backgroundColor: bg + '15' }]}>
+        <Ionicons name={icon} size={28} color={bg} />
       </View>
-
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
-      </View>
-      <View style={styles.actionsGrid}>
-        <TouchableOpacity 
-          style={styles.actionItem} 
-          onPress={() => router.push('/(provider)/add-facility')}
-        >
-          <View style={[styles.actionIcon, { backgroundColor: colors.primary }]}>
-            <Ionicons name="add" size={24} color={colors.surface} />
-          </View>
-          <Text style={styles.actionLabel}>Add Facility</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.actionItem} 
-          onPress={() => router.push('/(provider)/facilities')}
-        >
-          <View style={[styles.actionIcon, { backgroundColor: colors.info }]}>
-            <Ionicons name="list" size={24} color={colors.surface} />
-          </View>
-          <Text style={styles.actionLabel}>View All</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.actionItem} 
-          onPress={() => router.push('/(provider)/earnings')}
-        >
-          <View style={[styles.actionIcon, { backgroundColor: colors.success }]}>
-            <Ionicons name="wallet-outline" size={24} color={colors.surface} />
-          </View>
-          <Text style={styles.actionLabel}>Earnings</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.actionItem} 
-          onPress={() => router.push('/(provider)/bookings')}
-        >
-          <View style={[styles.actionIcon, { backgroundColor: colors.warning }]}>
-            <Ionicons name="calendar" size={24} color={colors.surface} />
-          </View>
-          <Text style={styles.actionLabel}>Bookings</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Recent Activity</Text>
-      </View>
-      <View style={styles.recentList}>
-        {recentBookings.length > 0 ? (
-          recentBookings.map((booking) => (
-            <Card key={booking.id} style={styles.recentCard}>
-              <View style={styles.bookingInfo}>
-                <View>
-                  <Text style={styles.customerName}>{booking.customer?.full_name || 'Guest User'}</Text>
-                  <Text style={styles.facilityName}>{booking.facility?.name} • {booking.slot?.slot_number || booking.slot_id?.substring(0,8)}</Text>
-                  <Text style={styles.bookingTime}>
-                    {new Date(booking.entry_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </Text>
-                </View>
-                <View style={styles.amountContainer}>
-                  <Text style={styles.amountText}>₹{booking.total_fee || booking.base_fee || 0}</Text>
-                  <View style={[styles.statusBadge, { backgroundColor: booking.status === 'ACTIVE' ? colors.success + '20' : colors.textMuted + '20' }]}>
-                    <Text style={[styles.statusText, { color: booking.status === 'ACTIVE' ? colors.success : colors.textSecondary }]}>
-                      {booking.status}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </Card>
-          ))
-        ) : (
-          <EmptyState
-            icon="calendar-outline"
-            title="No recent activity"
-            subtitle="Your facility's bookings and entries will appear here."
-          />
-        )}
-      </View>
-    </ScrollView>
+      <Text style={styles.actionText}>{label}</Text>
+    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  mainContainer: {
     flex: 1,
     backgroundColor: colors.background,
   },
@@ -347,225 +373,222 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    padding: 24,
-    paddingTop: 48,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    paddingTop: Platform.OS === 'ios' ? 80 : 60,
+    paddingHorizontal: 24,
+    paddingBottom: 60,
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
   },
   headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    marginBottom: 32,
   },
-  connectionBadge: {
+  greeting: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.7)',
+    textTransform: 'uppercase',
+    letterSpacing: 2,
+  },
+  userName: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: 'white',
+    letterSpacing: -1,
+  },
+  scanBtn: {
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  scanIconBox: {
+    width: 60,
+    height: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  mainGaugeCard: {
+    padding: 24,
+    borderRadius: 32,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  gaugeMetrics: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+    justifyContent: 'center',
+    marginTop: 20,
+    gap: 20,
+  },
+  metricItem: {
+    alignItems: 'center',
+    flexDirection: 'row',
     gap: 6,
   },
-  connectionDot: {
+  metricValue: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: 'white',
+  },
+  metricLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: 'rgba(255,255,255,0.6)',
+    letterSpacing: 1,
+  },
+  metricDivider: {
+    width: 1,
+    height: 12,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  statusDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
   },
-  connectionText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
+  content: {
+    paddingHorizontal: 24,
+    marginTop: -40,
   },
-  lastUpdate: {
-    fontSize: 11,
-    color: colors.textMuted,
-    marginTop: 8,
+  statsRow: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 32,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+  halfStat: {
+    flex: 1,
+  },
+  statBox: {
+    padding: 20,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  statIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  statMainValue: {
+    fontSize: 22,
+    fontWeight: '900',
     color: colors.textPrimary,
   },
-  greeting: {
-    fontSize: 14,
-    color: colors.primary,
-    fontWeight: '600',
-    marginBottom: 4,
+  statSubLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.textMuted,
+    letterSpacing: 1,
+    marginTop: 2,
   },
-  subtitle: {
+  section: {
+    marginBottom: 32,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionTitle: {
     fontSize: 14,
-    color: colors.textSecondary,
-    marginTop: 4,
+    fontWeight: '900',
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
+    marginBottom: 16,
+  },
+  viewMore: {
+    color: colors.primary,
+    fontWeight: '800',
+    fontSize: 12,
   },
   actionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    padding: 16,
     gap: 16,
   },
-  actionItem: {
+  actionBtn: {
     flex: 1,
-    minWidth: '45%',
+    minWidth: (width / 2) - 40,
     backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 16,
+    padding: 24,
+    borderRadius: 28,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
+    ...colors.shadows.sm,
   },
-  actionIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  actionLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.textPrimary,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    padding: 16,
-    gap: 16,
-  },
-  statCard: {
-    flex: 1,
-    minWidth: '40%',
-    padding: 16,
-    alignItems: 'center',
-  },
-  iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  actionIconOuter: {
+    width: 60,
+    height: 60,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 12,
   },
-  statValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  gaugeSection: {
-    paddingHorizontal: 16,
-    marginTop: -20,
-  },
-  gaugeCard: {
-    padding: 20,
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    ...colors.shadows.md,
-  },
-  gaugeStats: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: '100%',
-    marginTop: 10,
-    gap: 24,
-  },
-  gaugeStatItem: {
-    alignItems: 'center',
-  },
-  gaugeStatValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
+  actionText: {
+    fontSize: 14,
+    fontWeight: '800',
     color: colors.textPrimary,
   },
-  gaugeStatLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  gaugeStatDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: colors.border,
-  },
-  glassCard: {
-    backgroundColor: colors.glassSurface,
-    borderColor: colors.glassBorder,
-    borderWidth: 1,
-    ...colors.shadows.sm,
-  },
-  sectionHeader: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-  },
-  recentList: {
-    paddingHorizontal: 16,
-    paddingBottom: 24,
-  },
-  recentCard: {
+  activityCard: {
     padding: 16,
-    marginBottom: 8,
+    borderRadius: 24,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  bookingInfo: {
+  activityInfo: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
   },
-  customerName: {
+  customerAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  avatarText: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: colors.primary,
+  },
+  activityDetails: {
+    flex: 1,
+  },
+  custName: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '800',
     color: colors.textPrimary,
   },
-  facilityName: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  bookingTime: {
+  activityFac: {
     fontSize: 12,
     color: colors.textMuted,
-    marginTop: 4,
+    marginTop: 2,
+    fontWeight: '600',
   },
-  amountContainer: {
+  activityPricing: {
     alignItems: 'flex-end',
   },
-  amountText: {
+  activityAmount: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-    marginBottom: 4,
+    fontWeight: '900',
+    color: colors.success,
   },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  statusText: {
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  emptyCard: {
-    padding: 32,
-    alignItems: 'center',
-  },
-  emptyActivity: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyText: {
-    marginTop: 12,
+  activityTime: {
+    fontSize: 11,
     color: colors.textMuted,
-    fontSize: 14,
+    fontWeight: '700',
+    marginTop: 4,
   },
 });

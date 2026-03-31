@@ -7,6 +7,8 @@ import { useAuthStore } from '../store/authStore';
 import { ToastContainer } from '../components/Toast';
 import { useOTAUpdate } from '../hooks/useOTAUpdate';
 import { usePushNotifications } from '../hooks/usePushNotifications';
+import { ErrorBoundary } from '../components/ErrorBoundary';
+import { initReporting } from '../utils/reporting';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -45,6 +47,7 @@ export default function RootLayout() {
   const { loadFromStorage, isInitialized } = useAuthStore();
 
   useEffect(() => {
+    initReporting();
     loadFromStorage();
   }, []);
 
@@ -62,8 +65,10 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
-        <InitialLayout />
-        <ToastContainer />
+        <ErrorBoundary>
+          <InitialLayout />
+          <ToastContainer />
+        </ErrorBoundary>
       </SafeAreaProvider>
     </QueryClientProvider>
   );

@@ -6,11 +6,9 @@ export type UserRole = 'customer' | 'provider';
 
 export interface User {
   id: string;
-  name?: string;
-  full_name?: string;
+  full_name: string;
   email: string;
-  phone?: string;
-  phone_number?: string;
+  phone_number: string;
   role: UserRole;
   avatar?: string;
 }
@@ -83,15 +81,21 @@ export interface Vehicle {
   is_default: boolean;
 }
 export interface MonthlyPass {
-  id: string; userId: string; facilityId: string; vehicleId: string;
-  startDate: string; endDate: string; amount: number; isActive: boolean;
+  id: string; 
+  user_id: string; 
+  facility_id: string; 
+  vehicle_id: string;
+  start_date: string; 
+  end_date: string; 
+  amount: number; 
+  is_active: boolean;
 }
 export interface AuthResponse {
   status: string;
   data: {
     user: User;
-    accessToken: string; 
-    refreshToken: string;
+    access_token: string; 
+    refresh_token: string;
   };
 }
 export interface ApiResponse<T> {

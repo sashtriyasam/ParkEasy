@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../constants/colors';
+import { Button } from './ui/Button';
 
 interface EmptyStateProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -21,15 +22,19 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   return (
     <View style={styles.container}>
       <View style={styles.iconContainer}>
-        <Ionicons name={icon} size={64} color={colors.textMuted} />
+        <Ionicons name={icon} size={48} color={colors.primary} />
       </View>
       <Text style={styles.title}>{title}</Text>
       {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
       
       {actionLabel && onAction && (
-        <TouchableOpacity style={styles.actionButton} onPress={onAction}>
-          <Text style={styles.actionText}>{actionLabel}</Text>
-        </TouchableOpacity>
+        <Button 
+          label={actionLabel} 
+          onPress={onAction} 
+          variant="outline" 
+          size="md" 
+          style={styles.actionButton}
+        />
       )}
     </View>
   );
@@ -40,48 +45,36 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 32,
-    marginTop: 64,
+    padding: 40,
+    marginTop: 40,
   },
   iconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: colors.surface,
+    width: 100,
+    height: 100,
+    borderRadius: 30,
+    backgroundColor: colors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 24,
-    borderWidth: 1,
-    borderColor: colors.border,
+    ...colors.shadows.sm,
   },
   title: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 22,
+    fontWeight: '800',
     color: colors.textPrimary,
     textAlign: 'center',
     marginBottom: 8,
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 15,
     color: colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 24,
+    lineHeight: 22,
+    marginBottom: 32,
+    fontWeight: '500',
   },
   actionButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  actionText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 14,
+    minWidth: 200,
   },
 });

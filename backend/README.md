@@ -254,15 +254,17 @@ pm2 startup
 ### Option 2: Docker
 
 ```dockerfile
-# Example Dockerfile (create this in backend/)
-FROM node:18-alpine
+# Actual Production Dockerfile Structure
+FROM node:20-alpine
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 COPY . .
 RUN npx prisma generate
+RUN addgroup -g 1001 -S appgroup && adduser -u 1001 -S appuser -G appgroup && chown -R appuser:appgroup /app
+USER appuser
 EXPOSE 5000
-CMD ["npm", "start"]
+CMD ["node", "index.js"]
 ```
 
 Build and run:
@@ -270,6 +272,21 @@ Build and run:
 docker build -t parking-api .
 docker run -p 5000:5000 --env-file .env parking-api
 ```
+
+### 🔍 Post-Deployment Verification
+
+After deploying, verify the system's health with these checks:
+
+1. **Health Check**: `GET /health` → should return `{ status: 'ok', database: 'connected' }`
+2. **Auth Integration**: `POST /api/v1/auth/register` → should succeed and return JWT tokens.
+3. **No HTML Errors**: Ensure no "Application not found" HTML responses are returned by your ingress/load-balancer.
+
+4. **Auth Validation Guards**:
+    - `POST /api/v1/auth/register` with `role: "ADMIN"` → should return `400` ("Role must be CUSTOMER or PROVIDER")
+    - `POST /api/v1/auth/register` with `email: "notanemail"` → should return `400` ("Invalid email format")
+    - `POST /api/v1/auth/register` with `password: "abc"` → should return `400` ("Password must be at least 8 characters")
+    - `POST /api/v1/auth/login` with an empty password → should return `400` ("Password is required")
+
 
 ### Environment Variables for Production
 

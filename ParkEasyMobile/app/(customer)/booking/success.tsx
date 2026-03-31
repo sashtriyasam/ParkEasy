@@ -1,13 +1,24 @@
 import React, { useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Share, Alert, TouchableOpacity, Platform } from 'react-native';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  Share, 
+  Alert, 
+  TouchableOpacity, 
+  Platform, 
+  Dimensions,
+  ScrollView 
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as MediaLibrary from 'expo-media-library';
 import { captureRef } from 'react-native-view-shot';
 import { useBookingFlowStore } from '../../../store/bookingFlowStore';
 import { Button } from '../../../components/ui/Button';
-import { Card } from '../../../components/ui/Card';
+import { GlassCard } from '../../../components/ui/GlassCard';
 import { colors } from '../../../constants/colors';
 import Animated, { 
   useSharedValue, 
@@ -16,8 +27,12 @@ import Animated, {
   withTiming, 
   withSequence,
   withSpring,
-  interpolateColor
+  interpolateColor,
+  FadeInDown,
+  FadeIn
 } from 'react-native-reanimated';
+
+const { width } = Dimensions.get('window');
 
 export default function BookingSuccessScreen() {
   const router = useRouter();
@@ -36,14 +51,15 @@ export default function BookingSuccessScreen() {
     }
     
     // Start animations
-    glow.value = withRepeat(withTiming(1, { duration: 1500 }), -1, true);
-    iconScale.value = withSpring(1, { damping: 12, stiffness: 100 });
+    glow.value = withRepeat(withTiming(1, { duration: 2000 }), -1, true);
+    iconScale.value = withSpring(1, { damping: 10, stiffness: 100 });
   }, [status]);
 
   const animatedGlowStyle = useAnimatedStyle(() => ({
-    borderColor: interpolateColor(glow.value, [0, 1], [colors.border, colors.primary]),
-    shadowOpacity: glow.value * 0.5,
-    shadowRadius: glow.value * 15,
+    shadowColor: interpolateColor(glow.value, [0, 1], [colors.primary, colors.secondary]),
+    shadowOpacity: 0.3 + (glow.value * 0.4),
+    shadowRadius: 10 + (glow.value * 20),
+    transform: [{ scale: 1 + (glow.value * 0.02) }]
   }));
 
   const animatedIconStyle = useAnimatedStyle(() => ({
@@ -53,8 +69,9 @@ export default function BookingSuccessScreen() {
   if (!created_ticket_id) {
     return (
       <View style={styles.center}>
-        <Text>No ticket found. Return to home.</Text>
-        <Button label="Go Home" onPress={() => router.replace('/(customer)/')} style={{marginTop: 16}} />
+        <Ionicons name="alert-circle" size={64} color={colors.danger} />
+        <Text style={styles.errorText}>No ticket found. Return to home.</Text>
+        <Button label="Go Home" onPress={() => router.replace('/(customer)/')} style={{marginTop: 24}} />
       </View>
     );
   }
@@ -66,8 +83,8 @@ export default function BookingSuccessScreen() {
 
   const handleShare = async () => {
     try {
-      const result = await Share.share({
-        message: `My parking ticket for ${facility_name} (Vehicle: ${vehicle_number}). Ticket ID: ${created_ticket_id}`,
+      await Share.share({
+        message: `My ParkEasy ticket for ${facility_name}\nVehicle: ${vehicle_number}\nTicket ID: ${created_ticket_id}`,
       });
     } catch (error: any) {
       Alert.alert('Share Failed', error.message);
@@ -99,51 +116,93 @@ export default function BookingSuccessScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.progressContainer}>
-        <View style={[styles.progressBar, { width: '100%' }]} />
-        <Text style={styles.progressText}>Step 3 of 3</Text>
+      <LinearGradient colors={['#FFFFFF', '#F0F9FF']} style={StyleSheet.absoluteFill} />
+      
+      <View style={styles.header}>
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: '100%', backgroundColor: colors.success }]} />
+        </View>
+        <Text style={[styles.progressLabel, { color: colors.success }]}>Booking Complete</Text>
       </View>
 
-      <View style={styles.content}>
-        <Animated.View style={[styles.successIconContainer, animatedIconStyle]}>
-          <Ionicons name="checkmark-circle" size={80} color={colors.success} />
-        </Animated.View>
-        <Text style={styles.title}>Booking Confirmed!</Text>
-        <Text style={styles.subtitle}>Your parking slot has been reserved successfully.</Text>
-
-        <View ref={qrRef}collapsable={false} style={styles.ticketCardWrapper}>
-          <Animated.View style={[styles.glowContainer, animatedGlowStyle]}>
-            <Card style={styles.ticketCard}>
-              <Text style={styles.ticketFacility}>{facility_name}</Text>
-              <View style={styles.qrContainer}>
-                <QRCode
-                  value={created_ticket_id}
-                  size={160}
-                  color={colors.textPrimary}
-                  backgroundColor="white"
-                />
-              </View>
-              <Text style={styles.ticketId}>ID: {created_ticket_id}</Text>
-              <Text style={styles.ticketVehicle}>{vehicle_number}</Text>
-            </Card>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <Animated.View entering={FadeInDown.duration(800).springify()} style={styles.alignCenter}>
+          <Animated.View style={[styles.successIconContainer, animatedIconStyle]}>
+            <View style={styles.iconCircle}>
+              <Ionicons name="checkmark" size={50} color="white" />
+            </View>
           </Animated.View>
-        </View>
+          
+          <Text style={styles.title}>All Set!</Text>
+          <Text style={styles.subtitle}>Your space at {facility_name} is reserved.</Text>
 
-        <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.actionButton} onPress={handleSave}>
-            <Ionicons name="download-outline" size={24} color={colors.primary} />
-            <Text style={styles.actionText}>Save Image</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton} onPress={handleShare}>
-            <Ionicons name="share-outline" size={24} color={colors.primary} />
-            <Text style={styles.actionText}>Share Ticket</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+          <View ref={qrRef} collapsable={false} style={styles.ticketWrapper}>
+            <Animated.View style={[styles.passContainer, animatedGlowStyle]}>
+              <View style={styles.passHeader}>
+                <Text style={styles.passTitle}>PARKING PASS</Text>
+                <View style={styles.passIndicator} />
+              </View>
+              
+              <View style={styles.qrSection}>
+                <View style={styles.qrInner}>
+                  <QRCode
+                    value={created_ticket_id}
+                    size={160}
+                    color={colors.textPrimary}
+                    backgroundColor="transparent"
+                  />
+                </View>
+              </View>
 
-      <View style={styles.footer}>
-        <Button label="View My Tickets" onPress={handleDone} />
-      </View>
+              <View style={styles.passDivider}>
+                <View style={[styles.notch, styles.notchLeft]} />
+                <View style={styles.dashedLine} />
+                <View style={[styles.notch, styles.notchRight]} />
+              </View>
+
+              <View style={styles.passFooter}>
+                <View style={styles.footerRow}>
+                  <View style={styles.footerItem}>
+                    <Text style={styles.footerLabel}>VEHICLE</Text>
+                    <Text style={styles.footerValue}>{vehicle_number}</Text>
+                  </View>
+                  <View style={styles.footerItem}>
+                    <Text style={styles.footerLabel}>TICKET ID</Text>
+                    <Text style={styles.footerValue}>#{created_ticket_id.substring(0, 8)}...</Text>
+                  </View>
+                </View>
+                <Text style={styles.instructions}>Scan this code at the entrance</Text>
+              </View>
+            </Animated.View>
+          </View>
+
+          <View style={styles.actionGrid}>
+            <GlassCard style={styles.actionCard} onPress={handleSave}>
+              <View style={styles.actionIconContainer}>
+                <Ionicons name="download-outline" size={24} color={colors.primary} />
+              </View>
+              <Text style={styles.actionText}>Save to Gallery</Text>
+            </GlassCard>
+            
+            <GlassCard style={styles.actionCard} onPress={handleShare}>
+              <View style={styles.actionIconContainer}>
+                <Ionicons name="share-social-outline" size={24} color={colors.primary} />
+              </View>
+              <Text style={styles.actionText}>Share Ticket</Text>
+            </GlassCard>
+          </View>
+        </Animated.View>
+        <View style={{ height: 120 }} />
+      </ScrollView>
+
+      <GlassCard style={styles.bottomBar} intensity={90}>
+        <Button 
+          label="View My Tickets" 
+          onPress={handleDone} 
+          size="lg"
+          variant="primary"
+        />
+      </GlassCard>
     </View>
   );
 }
@@ -157,122 +216,210 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: 32,
+    backgroundColor: 'white',
   },
-  progressContainer: {
-    height: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+  errorText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    marginTop: 16,
+  },
+  header: {
+    paddingTop: 60,
     paddingHorizontal: 24,
-    position: 'relative',
+    backgroundColor: colors.surface,
+    paddingBottom: 20,
+    ...colors.shadows.sm,
   },
-  progressBar: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    backgroundColor: colors.success,
+  progressTrack: {
+    height: 6,
+    backgroundColor: colors.border,
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginBottom: 8,
   },
-  progressText: {
+  progressFill: {
+    height: '100%',
+  },
+  progressLabel: {
     fontSize: 12,
-    color: 'white',
-    fontWeight: 'bold',
-    zIndex: 1,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
-  content: {
-    flex: 1,
-    padding: 24,
+  scrollContent: {
+    paddingVertical: 32,
+  },
+  alignCenter: {
     alignItems: 'center',
   },
   successIconContainer: {
-    marginTop: 24,
-    marginBottom: 16,
+    marginBottom: 20,
+  },
+  iconCircle: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: colors.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...colors.shadows.md,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 32,
+    fontWeight: '900',
     color: colors.textPrimary,
     marginBottom: 8,
-    textAlign: 'center',
+    letterSpacing: -1,
   },
   subtitle: {
     fontSize: 16,
     color: colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 32,
+    paddingHorizontal: 40,
+    fontWeight: '500',
+    marginBottom: 40,
   },
-  ticketCardWrapper: {
-    width: '100%',
-    alignItems: 'center',
-    paddingVertical: 20,
+  ticketWrapper: {
+    width: width * 0.85,
+    marginBottom: 40,
   },
-  glowContainer: {
-    width: '85%',
+  passContainer: {
+    backgroundColor: 'white',
     borderRadius: 24,
-    borderWidth: 2,
-    backgroundColor: 'white',
-    padding: 2,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 15,
-    elevation: 10,
-  },
-  ticketCard: {
-    padding: 24,
-    alignItems: 'center',
-    borderRadius: 22,
-    backgroundColor: 'white',
-    borderStyle: 'dashed',
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: colors.border,
+    overflow: 'hidden',
+    ...colors.shadows.lg,
   },
-  ticketFacility: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-    marginBottom: 24,
-    textAlign: 'center',
-  },
-  qrContainer: {
+  passHeader: {
+    backgroundColor: colors.textPrimary,
     padding: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  passTitle: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 2,
+  },
+  passIndicator: {
+    width: 30,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.primary,
+  },
+  qrSection: {
+    padding: 40,
+    alignItems: 'center',
     backgroundColor: 'white',
-    borderRadius: 12,
-    marginBottom: 24,
   },
-  ticketId: {
-    fontSize: 14,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    color: colors.textSecondary,
-    marginBottom: 8,
+  qrInner: {
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: 'white',
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
-  ticketVehicle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  passDivider: {
+    height: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    backgroundColor: 'white',
+  },
+  notch: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: colors.background,
+    position: 'absolute',
+  },
+  notchLeft: {
+    left: -15,
+  },
+  notchRight: {
+    right: -15,
+  },
+  dashedLine: {
+    flex: 1,
+    marginHorizontal: 20,
+    height: 1,
+    borderRadius: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderStyle: 'dashed',
+  },
+  passFooter: {
+    padding: 24,
+    backgroundColor: 'white',
+    borderTopWidth: 0,
+  },
+  footerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  footerItem: {
+    gap: 4,
+  },
+  footerLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.textMuted,
+    letterSpacing: 1,
+  },
+  footerValue: {
+    fontSize: 16,
+    fontWeight: '900',
     color: colors.textPrimary,
   },
-  actionRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 32,
-    marginTop: 32,
+  instructions: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '700',
+    textAlign: 'center',
+    opacity: 0.7,
   },
-  actionButton: {
+  actionGrid: {
+    flexDirection: 'row',
+    gap: 16,
+    paddingHorizontal: 24,
+  },
+  actionCard: {
+    flex: 1,
     alignItems: 'center',
-    gap: 8,
+    padding: 20,
+    borderRadius: 24,
+    gap: 12,
+  },
+  actionIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   actionText: {
-    color: colors.primary,
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.textPrimary,
   },
-  footer: {
+  bottomBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     padding: 24,
-    backgroundColor: colors.surface,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    borderWidth: 0,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
   },
 });

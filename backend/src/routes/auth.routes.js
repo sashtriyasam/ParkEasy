@@ -6,10 +6,12 @@ const { protect } = require('../middleware/auth');
 
 const router = express.Router();
 
+
 router.post('/register', validate(registerSchema), authController.register);
+
 router.post('/login', validate(loginSchema), authController.login);
+router.post('/logout', protect, authController.logout);
 router.post('/refresh', authController.refresh);
-router.post('/switch-role', protect, authController.switchRole);
 router.post('/update-push-token', protect, authController.updatePushToken);
 router.get('/me', protect, authController.getMe);
 

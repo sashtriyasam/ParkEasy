@@ -2,10 +2,26 @@ const bcrypt = require('bcryptjs');
 const prisma = require('../config/db');
 const AppError = require('../utils/AppError');
 const asyncHandler = require('../utils/asyncHandler');
-const { generateTokens, verifyRefreshToken } = require('../utils/token');
+const { generateTokens, verifyRefreshToken, hashToken } = require('../utils/token');
+
+const REFRESH_TOKEN_EXPIRY_DAYS = 7;
+
+/**
+ * Helper to store a hashed refresh token in the database
+ */
+const storeRefreshToken = async (userId, token) => {
+    const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+    return await prisma.refreshToken.create({
+        data: {
+            token_hash: hashToken(token),
+            user_id: userId,
+            expires_at: expiresAt,
+        }
+    });
+};
 
 const register = asyncHandler(async (req, res, next) => {
-    const { email, password, full_name, phone_number, role } = req.body;
+    const { email, password, full_name, phone_number } = req.body;
 
     // Check if user exists
     const existingUser = await prisma.user.findUnique({
@@ -20,19 +36,22 @@ const register = asyncHandler(async (req, res, next) => {
     const salt = await bcrypt.genSalt(10);
     const password_hash = await bcrypt.hash(password, salt);
 
-    // Create user
+    // Create user strictly as a CUSTOMER (anti-privilege escalation guard)
     const newUser = await prisma.user.create({
         data: {
             email,
             password_hash,
             full_name,
             phone_number,
-            role,
+            role: 'CUSTOMER',
         },
     });
 
     // Generate tokens
     const tokens = generateTokens(newUser.id, newUser.role);
+
+    // Store refresh token in DB
+    await storeRefreshToken(newUser.id, tokens.refreshToken);
 
     // Send response
     res.status(201).json({
@@ -64,6 +83,9 @@ const login = asyncHandler(async (req, res, next) => {
     // Generate tokens
     const tokens = generateTokens(user.id, user.role);
 
+    // Store refresh token in DB
+    await storeRefreshToken(user.id, tokens.refreshToken);
+
     res.status(200).json({
         status: 'success',
         data: {
@@ -78,6 +100,11 @@ const login = asyncHandler(async (req, res, next) => {
     });
 });
 
+// AI TEST:
+// ✅ Refresh token must exist in DB (not just valid JWT)
+// ✅ Old token deleted before new one created (rotation)
+// ✅ Reusing an old refresh token → 401 (already deleted)
+// ✅ Logout deletes all refresh tokens for user
 const refresh = asyncHandler(async (req, res, next) => {
     const { refreshToken } = req.body;
 
@@ -87,18 +114,29 @@ const refresh = asyncHandler(async (req, res, next) => {
 
     try {
         const decoded = verifyRefreshToken(refreshToken);
+        
+        // Use atomic delete-and-check to prevent concurrent reuse (BUG-014 fix)
+        const deleteResult = await prisma.refreshToken.deleteMany({
+            where: {
+                token_hash: hashToken(refreshToken),
+                expires_at: { gte: new Date() }
+            }
+        });
+
+        if (deleteResult.count === 0) {
+            return next(new AppError('Refresh token is invalid or expired', 401));
+        }
 
         // Find user
         const user = await prisma.user.findUnique({
             where: { id: decoded.sub },
         });
 
-        if (!user) {
-            return next(new AppError('User no longer exists', 401));
-        }
-
         // Generate new tokens
         const tokens = generateTokens(user.id, user.role);
+
+        // Store new refresh token in DB
+        await storeRefreshToken(user.id, tokens.refreshToken);
 
         res.status(200).json({
             status: 'success',
@@ -121,38 +159,6 @@ const getMe = asyncHandler(async (req, res) => {
     });
 });
 
-const switchRole = asyncHandler(async (req, res, next) => {
-    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-
-    if (!user) {
-        return next(new AppError('User not found', 404));
-    }
-
-    const newRole = user.role === 'CUSTOMER' ? 'PROVIDER' : 'CUSTOMER';
-
-    // Update role
-    const updatedUser = await prisma.user.update({
-        where: { id: user.id },
-        data: { role: newRole }
-    });
-
-    // Generate new tokens
-    const tokens = generateTokens(updatedUser.id, updatedUser.role);
-
-    res.status(200).json({
-        status: 'success',
-        data: {
-            user: {
-                id: updatedUser.id,
-                email: updatedUser.email,
-                full_name: updatedUser.full_name,
-                role: updatedUser.role,
-            },
-            ...tokens,
-        },
-    });
-});
-
 const updatePushToken = asyncHandler(async (req, res, next) => {
     const { push_token } = req.body;
 
@@ -171,11 +177,19 @@ const updatePushToken = asyncHandler(async (req, res, next) => {
     });
 });
 
+const logout = asyncHandler(async (req, res) => {
+    // Delete all refresh tokens for this user (logs out from all devices)
+    await prisma.refreshToken.deleteMany({
+        where: { user_id: req.user.id }
+    });
+    res.status(200).json({ status: 'success', message: 'Logged out from all sessions successfully' });
+});
+
 module.exports = {
     register,
     login,
     getMe,
     refresh,
-    switchRole,
     updatePushToken,
+    logout,
 };

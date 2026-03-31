@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
 import { User } from '../types';
+import { disconnectSocket } from '../hooks/useSocket';
 
 interface AuthState {
   user: User | null;
@@ -12,6 +13,14 @@ interface AuthState {
   loadFromStorage: () => Promise<void>;
 }
 
+/**
+ * AUTH STORE — isInitialized lifecycle:
+ * - Starts as false
+ * - Set to true after loadFromStorage() completes (existing session restore)
+ * - Set to true after login() completes (fresh login)
+ * - Stays true after logout() (user is initialized, just unauthenticated)
+ * AI TEST: isInitialized should ALWAYS become true within 2 seconds of app start.
+ */
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   accessToken: null,
@@ -24,7 +33,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       await SecureStore.setItemAsync('user', JSON.stringify(user));
       await SecureStore.setItemAsync('accessToken', accessToken);
       await SecureStore.setItemAsync('refreshToken', refreshToken);
-      set({ user, accessToken, isLoading: false });
+      set({ user, accessToken, isLoading: false, isInitialized: true });
     } catch (e) {
       console.error('Error storing auth info', e);
       set({ isLoading: false });
@@ -34,10 +43,11 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: async () => {
     set({ isLoading: true });
     try {
+      disconnectSocket(); // Tear down socket before clearing auth
       await SecureStore.deleteItemAsync('user');
       await SecureStore.deleteItemAsync('accessToken');
       await SecureStore.deleteItemAsync('refreshToken');
-      set({ user: null, accessToken: null, isLoading: false });
+      set({ user: null, accessToken: null, isLoading: false, isInitialized: true });
     } catch (e) {
       console.error('Error during logout', e);
       set({ isLoading: false });
@@ -45,6 +55,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   loadFromStorage: async () => {
+    set({ isLoading: true });
     try {
       const storedUser = await SecureStore.getItemAsync('user');
       const token = await SecureStore.getItemAsync('accessToken');

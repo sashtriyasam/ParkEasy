@@ -1,6 +1,1 @@
-import React from 'react';
-import { ProfileScreen } from '../../../components/ProfileScreen';
-
-export default function ProviderProfile() {
-  return <ProfileScreen />;
-}
+export { ProfileScreen as default } from '../../../components/ProfileScreen';

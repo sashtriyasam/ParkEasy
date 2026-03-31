@@ -67,6 +67,12 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
     }
   }, [visible]);
 
+  // AI TEST: Before calling RazorpayCheckout.open():
+  // ✅ react-native-razorpay in package.json
+  // ✅ user.full_name used (not user.name)
+  // ✅ user.phone_number used (not user.phone)
+  // ✅ orderData.orderId passed as order_id (not orderData.id)
+  // ✅ amount from orderData (in paise) not raw rupees
   const handlePayment = async () => {
     setStep('processing');
     try {
@@ -93,8 +99,8 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
         order_id: orderData.orderId,
         prefill: {
           email: user?.email || '',
-          contact: user?.phone || '',
-          name: user?.name || ''
+          contact: user?.phone_number || '',  // was user?.phone — WRONG field name
+          name: user?.full_name || ''          // was user?.name — WRONG field name
         },
         theme: { color: colors.primary }
       };

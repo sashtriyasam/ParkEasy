@@ -2,21 +2,22 @@ const prisma = require('../config/db');
 const AppError = require('../utils/AppError');
 const asyncHandler = require('../utils/asyncHandler');
 const analyticsService = require('../services/analytics.service');
+const logger = require('../utils/logger');
 
 // --- Facility Management ---
 
 const updateFacility = asyncHandler(async (req, res, next) => {
-    const { id } = req.params;
+    const { facilityId } = req.params;
     const { name, operating_hours } = req.body;
 
     // Check ownership
-    const facility = await prisma.parkingFacility.findUnique({ where: { id } });
+    const facility = await prisma.parkingFacility.findUnique({ where: { id: facilityId } });
     if (!facility || facility.provider_id !== req.user.id) {
         return next(new AppError('Facility not found or access denied', 404));
     }
 
     const updated = await prisma.parkingFacility.update({
-        where: { id },
+        where: { id: facilityId },
         data: { name, operating_hours }
     });
 
@@ -24,16 +25,16 @@ const updateFacility = asyncHandler(async (req, res, next) => {
 });
 
 const deleteFacility = asyncHandler(async (req, res, next) => {
-    const { id } = req.params;
+    const { facilityId } = req.params;
 
-    const facility = await prisma.parkingFacility.findUnique({ where: { id } });
+    const facility = await prisma.parkingFacility.findUnique({ where: { id: facilityId } });
     if (!facility || facility.provider_id !== req.user.id) {
         return next(new AppError('Facility not found or access denied', 404));
     }
 
     // Soft delete
     await prisma.parkingFacility.update({
-        where: { id },
+        where: { id: facilityId },
         data: { is_active: false }
     });
 
@@ -314,8 +315,16 @@ const getRevenueData = asyncHandler(async (req, res) => {
         if (!revenueByDate[date]) {
             revenueByDate[date] = { date, CAR: 0, BIKE: 0, SCOOTER: 0, TRUCK: 0 };
         }
-        const vehicleKey = ticket.vehicle_type.toUpperCase();
-        revenueByDate[date][vehicleKey] = (revenueByDate[date][vehicleKey] || 0) + (ticket.total_fee || 0);
+        
+        // Defensive fix: Handle missing vehicleType before toUpperCase
+        const vehicleKey = (ticket.vehicle_type || 'UNKNOWN').toUpperCase();
+        
+        // Ensure the bucket exists for this dynamic/normalized type
+        if (revenueByDate[date][vehicleKey] === undefined) {
+            revenueByDate[date][vehicleKey] = 0;
+        }
+        
+        revenueByDate[date][vehicleKey] += Number(ticket.total_fee || 0);
     });
 
     const revenueData = Object.values(revenueByDate).sort((a, b) =>
@@ -400,7 +409,7 @@ const getRecentBookings = asyncHandler(async (req, res) => {
         customer_name: booking.customer?.full_name || 'Unknown',
         vehicle_number: booking.vehicle_number,
         vehicle_type: booking.vehicle_type,
-        slot_number: booking.slot.slot_number,
+        slot_number: booking.slot?.slot_number || 'N/A',
         entry_time: booking.entry_time,
         amount: booking.total_fee || 0,
         status: booking.status.toLowerCase()
@@ -410,10 +419,10 @@ const getRecentBookings = asyncHandler(async (req, res) => {
 });
 
 const getFacilityDetails = asyncHandler(async (req, res, next) => {
-    const { id } = req.params;
+    const { facilityId } = req.params;
 
     const facility = await prisma.parkingFacility.findUnique({
-        where: { id },
+        where: { id: facilityId },
         include: {
             floors: {
                 include: {
@@ -443,7 +452,7 @@ const getFacilityDetails = asyncHandler(async (req, res, next) => {
 
     const todayRevenue = await prisma.ticket.aggregate({
         where: {
-            slot: { floor: { facility_id: id } },
+            slot: { floor: { facility_id: facilityId } },
             created_at: { gte: todayStart },
             status: 'COMPLETED'
         },
@@ -466,10 +475,10 @@ const getFacilityDetails = asyncHandler(async (req, res, next) => {
 });
 
 const deleteSlot = asyncHandler(async (req, res, next) => {
-    const { id } = req.params;
+    const { slotId } = req.params;
 
     const slot = await prisma.parkingSlot.findUnique({
-        where: { id },
+        where: { id: slotId },
         include: { floor: { include: { facility: true } } }
     });
 
@@ -491,7 +500,7 @@ const bulkCreateSlotsByFacility = asyncHandler(async (req, res, next) => {
     const { facilityId } = req.params;
     const { floor_number, vehicle_type, start_number, count, prefix } = req.body;
 
-    console.log('DEBUG bulkCreate:', { facilityId, floor_number, vehicle_type, start_number, count, prefix });
+    logger.debug(`bulkCreate: ${JSON.stringify({ facilityId, floor_number, vehicle_type, start_number, count, prefix })}`);
 
     // Verify ownership
     const facility = await prisma.parkingFacility.findUnique({
@@ -502,7 +511,7 @@ const bulkCreateSlotsByFacility = asyncHandler(async (req, res, next) => {
         return next(new AppError('Facility not found or access denied', 404));
     }
 
-    console.log('DEBUG: Facility found:', facility.id);
+    logger.debug(`Facility found: ${facility.id}`);
 
     // Find or create floor
     let floor = await prisma.floor.findFirst({
@@ -510,7 +519,7 @@ const bulkCreateSlotsByFacility = asyncHandler(async (req, res, next) => {
     });
 
     if (!floor) {
-        console.log('DEBUG: Creating new floor');
+        logger.debug('Creating new floor');
         floor = await prisma.floor.create({
             data: {
                 facility_id: facilityId,
@@ -520,7 +529,7 @@ const bulkCreateSlotsByFacility = asyncHandler(async (req, res, next) => {
         });
     }
 
-    console.log('DEBUG: Floor:', floor.id);
+    logger.debug(`Floor: ${floor.id}`);
 
     // Generate slot data
     const slots = [];
@@ -536,14 +545,14 @@ const bulkCreateSlotsByFacility = asyncHandler(async (req, res, next) => {
         });
     }
 
-    console.log('DEBUG: Slots to create:', slots.length, 'Sample:', slots[0]);
+    logger.debug(`Slots to create: ${slots.length}, Sample: ${JSON.stringify(slots[0])}`);
 
     // Use transaction with individual creates for SQLite compatibility
     const createdSlots = await prisma.$transaction(
         slots.map(slot => prisma.parkingSlot.create({ data: slot }))
     );
 
-    console.log('DEBUG: Created:', createdSlots.length);
+    logger.debug(`Created: ${createdSlots.length}`);
 
     res.status(201).json({
         status: 'success',
@@ -581,6 +590,13 @@ const getAllBookings = asyncHandler(async (req, res) => {
     }
 
     if (facility_id && facility_id !== 'all') {
+        // AI TEST: Horizontal Privilege Escalation Guard
+        if (!facilityIds.includes(facility_id)) {
+            return res.status(403).json({
+                status: 'error',
+                message: 'Unauthorized access to this facility'
+            });
+        }
         where.slot.floor.facility_id = facility_id;
     }
 
@@ -610,7 +626,7 @@ const getAllBookings = asyncHandler(async (req, res) => {
         customer_name: booking.customer?.full_name || 'Unknown',
         vehicle_number: booking.vehicle_number,
         vehicle_type: booking.vehicle_type,
-        slot_number: booking.slot.slot_number,
+        slot_number: booking.slot?.slot_number || 'N/A',
         entry_time: booking.entry_time,
         amount: booking.total_fee || 0,
         status: booking.status.toLowerCase()
@@ -624,7 +640,7 @@ const getAllBookings = asyncHandler(async (req, res) => {
 });
 
 const updateFacilityPricing = asyncHandler(async (req, res, next) => {
-    const { id: facilityId } = req.params;
+    const { facilityId } = req.params;
     const { car_hourly, bike_hourly, scooter_hourly, truck_hourly } = req.body;
 
     const facility = await prisma.parkingFacility.findUnique({
@@ -635,35 +651,29 @@ const updateFacilityPricing = asyncHandler(async (req, res, next) => {
         return next(new AppError('Facility not found or access denied', 404));
     }
 
-    // Update or create pricing rules for each vehicle type
-    const vehicleTypes = [
-        { type: 'CAR', rate: car_hourly },
-        { type: 'BIKE', rate: bike_hourly },
-        { type: 'SCOOTER', rate: scooter_hourly },
-        { type: 'TRUCK', rate: truck_hourly }
-    ];
-
-    for (const { type, rate } of vehicleTypes) {
-        if (rate !== undefined && rate !== null) {
-            const existing = await prisma.pricingRule.findFirst({
-                where: { facility_id: facilityId, vehicle_type: type }
-            });
-
-            if (existing) {
-                await prisma.pricingRule.update({
-                    where: { id: existing.id },
-                    data: { hourly_rate: parseFloat(rate) }
-                });
-            } else {
-                await prisma.pricingRule.create({
-                    data: {
+    // Atomically upsert pricing rules in a single transaction
+    const upsertPromises = vehicleTypes
+        .filter(({ rate }) => rate !== undefined && rate !== null && rate !== '')
+        .map(({ type, rate }) => {
+            const hourlyRate = parseFloat(rate);
+            return prisma.pricingRule.upsert({
+                where: {
+                    facility_id_vehicle_type: {
                         facility_id: facilityId,
-                        vehicle_type: type,
-                        hourly_rate: parseFloat(rate)
+                        vehicle_type: type
                     }
-                });
-            }
-        }
+                },
+                update: { hourly_rate: hourlyRate },
+                create: {
+                    facility_id: facilityId,
+                    vehicle_type: type,
+                    hourly_rate: hourlyRate
+                }
+            });
+        });
+
+    if (upsertPromises.length > 0) {
+        await prisma.$transaction(upsertPromises);
     }
 
     res.status(200).json({ status: 'success', message: 'Pricing updated successfully' });
@@ -802,10 +812,8 @@ const getAnalytics = asyncHandler(async (req, res) => {
     });
     const ids = facilities.map(f => f.id);
 
-    // 3. Mock/Calculate revenue data per day (last 7 days) if not already enough data
-    // For now, using the getDashboardStats basis and adding a simple trend
-    // In production, this would be a more complex SQL aggregation
-    const revenueTrend = [stats.revenue.today * 0.4, stats.revenue.today * 0.6, stats.revenue.today * 0.8, stats.revenue.today];
+    // 3. Get 7-Day Trend Data
+    const trend = await analyticsService.getTrendData(providerId, 7);
     
     // 4. Vehicle Distribution
     const tickets = await prisma.ticket.groupBy({
@@ -826,12 +834,125 @@ const getAnalytics = asyncHandler(async (req, res) => {
         status: 'success',
         data: {
             stats: stats,
-            revenue: revenueTrend.length > 0 ? revenueTrend : [0, 0, 0, 0, 0, 0, 0],
-            occupancy: [stats.occupancy * 0.8, stats.occupancy * 0.9, stats.occupancy],
+            revenue: trend.revenue,
+            occupancy: trend.occupancy,
+            labels: trend.labels,
+            sampleData: !trend.hasData, // Flag for synthetic data (only if no DB data exists)
             vehicles: vehicles.length > 0 ? vehicles : [
                 { name: 'Cars', population: 0, color: '#3B82F6' },
                 { name: 'Bikes', population: 0, color: '#10B981' }
             ]
+        }
+    });
+});
+
+/**
+ * Get financial earnings, trend and history for provider
+ */
+const getEarnings = asyncHandler(async (req, res, next) => {
+    const providerId = req.user.id;
+
+    // 1. Get facility IDs
+    const facilities = await prisma.parkingFacility.findMany({
+        where: { provider_id: providerId },
+        select: { id: true }
+    });
+    const facilityIds = facilities.map(f => f.id);
+
+    if (facilityIds.length === 0) {
+        return res.status(200).json({
+            status: 'success',
+            data: {
+                totalRevenue: 0,
+                withdrawableBalance: 0,
+                pendingSettlements: 0,
+                thisMonthRevenue: 0,
+                trend: { labels: [], data: [0, 0, 0, 0, 0, 0] },
+                history: []
+            }
+        });
+    }
+
+    // 2. Aggregate data
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [totalAgg, monthAgg, history] = await Promise.all([
+        prisma.ticket.aggregate({
+            where: { facility_id: { in: facilityIds }, status: 'COMPLETED' },
+            _sum: { total_fee: true }
+        }),
+        prisma.ticket.aggregate({
+            where: { 
+                facility_id: { in: facilityIds }, 
+                status: 'COMPLETED',
+                created_at: { gte: monthStart }
+            },
+            _sum: { total_fee: true }
+        }),
+        prisma.ticket.findMany({
+            where: { facility_id: { in: facilityIds }, status: 'COMPLETED' },
+            orderBy: { created_at: 'desc' },
+            take: 15,
+            select: { id: true, total_fee: true, created_at: true, payment_method: true, status: true }
+        })
+    ]);
+
+    // 3. 6-Month Trend (Optimized: Single query to prevent N+1 bottleneck)
+    const months = [];
+    const trendData = [];
+    const trendKeyMap = {};
+    
+    // Pre-calculate month buckets
+    for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthName = d.toLocaleString('default', { month: 'short' });
+        const key = `${d.getFullYear()}-${d.getMonth()}`;
+        
+        months.push(monthName);
+        trendData.push(0);
+        trendKeyMap[key] = months.length - 1; // Map YYYY-MM to array index
+    }
+
+    const sixMonthStart = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    const historicalTickets = await prisma.ticket.findMany({
+        where: {
+            facility_id: { in: facilityIds },
+            status: 'COMPLETED',
+            created_at: { gte: sixMonthStart }
+        },
+        select: { total_fee: true, created_at: true }
+    });
+
+    historicalTickets.forEach(ticket => {
+        const key = `${ticket.created_at.getFullYear()}-${ticket.created_at.getMonth()}`;
+        if (trendKeyMap[key] !== undefined) {
+            const index = trendKeyMap[key];
+            trendData[index] += Number(ticket.total_fee || 0);
+        }
+    });
+
+    res.status(200).json({
+        status: 'success',
+        data: {
+            totalRevenue: Number(totalAgg._sum.total_fee || 0),
+            // TODO: Subtract withdrawals and platform fees when Withdrawal model is implemented
+            withdrawableBalance: Number(totalAgg._sum.total_fee || 0), 
+            // TODO: Implement settlement tracking for pending payouts
+            pendingSettlements: 0, 
+            thisMonthRevenue: Number(monthAgg._sum.total_fee || 0),
+            isApproximate: true, // Flag indicating financial values are current-estimate/MVP
+            trend: {
+                labels: months,
+                data: trendData
+            },
+            history: history.map(h => ({
+                id: h.id,
+                amount: Number(h.total_fee || 0),
+                created_at: h.created_at,
+                status: h.status ? h.status.toUpperCase() : 'SUCCESS',
+                method: h.payment_method || 'Razorpay'
+            }))
         }
     });
 });
@@ -856,6 +977,7 @@ module.exports = {
     getAllBookings,
     updateFacilityPricing,
     checkVehicleByPlate,
-    getAnalytics
+    getAnalytics,
+    getEarnings
 };
 

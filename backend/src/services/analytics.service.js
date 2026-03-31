@@ -80,6 +80,65 @@ const getDashboardStats = async (providerId) => {
     };
 };
 
+const getTrendData = async (providerId, days = 7) => {
+    // 1. Get Provider Facilities IDs
+    const facilities = await prisma.parkingFacility.findMany({
+        where: { provider_id: providerId, is_active: true },
+        select: { id: true }
+    });
+    const facilityIds = facilities.map(f => f.id);
+
+    if (facilityIds.length === 0) {
+        return { revenue: Array(days).fill(0), occupancy: Array(days).fill(0), labels: [] };
+    }
+
+    // 2. Generate date buckets
+    const labels = [];
+    const revenueBuckets = {};
+    const countBuckets = {};
+    
+    for (let i = days - 1; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const dateKey = d.toISOString().split('T')[0]; // YYYY-MM-DD
+        labels.push(d.toLocaleDateString('default', { weekday: 'short' }));
+        revenueBuckets[dateKey] = 0;
+        countBuckets[dateKey] = 0;
+    }
+
+    // 3. Query all tickets in the range
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days + 1);
+    startDate.setHours(0, 0, 0, 0);
+
+    const tickets = await prisma.ticket.findMany({
+        where: {
+            slot: { floor: { facility_id: { in: facilityIds } } },
+            created_at: { gte: startDate }
+        },
+        select: { total_fee: true, created_at: true, status: true }
+    });
+
+    // 4. Reduce into buckets
+    tickets.forEach(ticket => {
+        const key = ticket.created_at.toISOString().split('T')[0];
+        if (revenueBuckets.hasOwnProperty(key)) {
+            if (ticket.status === 'COMPLETED') {
+                revenueBuckets[key] += Number(ticket.total_fee || 0);
+            }
+            countBuckets[key] += 1; // Count all tickets as occupancy proxy per day
+        }
+    });
+
+    return {
+        revenue: Object.values(revenueBuckets),
+        occupancy: Object.values(countBuckets),
+        labels: labels,
+        hasData: tickets.length > 0
+    };
+};
+
 module.exports = {
-    getDashboardStats
+    getDashboardStats,
+    getTrendData
 };

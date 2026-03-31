@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, LayoutAnimation, Platform, UIManager } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../../constants/colors';
-import { Card } from '../../../components/ui/Card';
+import { GlassCard } from '../../../components/ui/GlassCard';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -80,14 +80,14 @@ export default function FAQScreen() {
         </View>
       ))}
 
-      <Card style={styles.contactCard}>
+      <GlassCard style={styles.contactCard} intensity={10}>
         <Ionicons name="chatbubbles" size={32} color={colors.primary} />
         <Text style={styles.contactTitle}>Still have questions?</Text>
         <Text style={styles.contactSub}>Our team is available 24/7 for assistance.</Text>
         <TouchableOpacity style={styles.contactBtn}>
           <Text style={styles.contactBtnText}>Chat with Support</Text>
         </TouchableOpacity>
-      </Card>
+      </GlassCard>
     </ScrollView>
   );
 }

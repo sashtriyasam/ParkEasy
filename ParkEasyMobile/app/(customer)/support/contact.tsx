@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, Alert,
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../../constants/colors';
 import { Button } from '../../../components/ui/Button';
-import { Card } from '../../../components/ui/Card';
+import { GlassCard } from '../../../components/ui/GlassCard';
 
 export default function ContactSupportScreen() {
   const [message, setMessage] = useState('');
@@ -63,7 +63,7 @@ export default function ContactSupportScreen() {
         </TouchableOpacity>
       </View>
 
-      <Card style={styles.formCard}>
+      <GlassCard style={styles.formCard} intensity={10}>
         <Text style={styles.formTitle}>Send a Message</Text>
         
         <View style={styles.inputGroup}>
@@ -94,7 +94,7 @@ export default function ContactSupportScreen() {
           loading={sending}
           style={styles.sendBtn}
         />
-      </Card>
+      </GlassCard>
 
       <View style={styles.footer}>
         <Text style={styles.footerText}>Response time: ~2 hours</Text>
