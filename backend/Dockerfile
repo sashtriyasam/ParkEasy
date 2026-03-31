@@ -5,6 +5,7 @@ RUN groupadd -g 1001 appgroup && \
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 COPY . .
 RUN npx prisma generate
 RUN chown -R appuser:appgroup /app
