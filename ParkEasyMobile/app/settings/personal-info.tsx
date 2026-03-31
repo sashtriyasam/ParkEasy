@@ -8,7 +8,7 @@ import { useAuthStore } from '../../store/authStore';
 export default function PersonalInfoScreen() {
   const { user } = useAuthStore();
   const [formData, setFormData] = useState({
-    name: user?.full_name || user?.name || '',
+    name: user?.full_name || '',
     email: user?.email || '',
     phone: user?.phone_number || '',
   });

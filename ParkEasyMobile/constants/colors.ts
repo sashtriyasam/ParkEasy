@@ -39,7 +39,7 @@ export const colors = {
     lg: { shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.15, shadowRadius: 20, elevation: 6 },
     premium: { shadowColor: '#2563EB', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 20, elevation: 8 },
   }
-};
+} as const;
 
 export const VEHICLE_TYPE_COLORS = {
   bike: colors.primary,

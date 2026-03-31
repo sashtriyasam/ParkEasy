@@ -28,4 +28,8 @@ router.patch(
     adminController.updateUserRole
 );
 
+// Payout Management
+router.get('/withdrawals', adminController.getPendingWithdrawals);
+router.patch('/withdrawals/:withdrawalId', adminController.processWithdrawal);
+
 module.exports = router;

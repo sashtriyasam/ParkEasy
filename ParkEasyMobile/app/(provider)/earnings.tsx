@@ -8,6 +8,9 @@ import { GlassCard } from '../../components/ui/GlassCard';
 import { colors } from '../../constants/colors';
 import { LineChart } from 'react-native-chart-kit';
 import { useRouter } from 'expo-router';
+import { Modal, TextInput, ActivityIndicator } from 'react-native';
+import { post } from '../../services/api';
+import { BlurView } from 'expo-blur';
 
 const { width } = Dimensions.get('window');
 
@@ -26,6 +29,17 @@ export default function EarningsScreen() {
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  
+  // Withdrawal Modal State
+  const [showModal, setShowModal] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [payoutMethod, setPayoutMethod] = useState<'UPI' | 'BANK'>('UPI');
+  const [payoutDetails, setPayoutDetails] = useState({
+    upiId: '',
+    accNo: '',
+    ifsc: '',
+  });
+  const [submitting, setSubmitting] = useState(false);
 
   const fetchEarnings = async (showLoading = true) => {
     if (showLoading) setLoading(true);
@@ -76,11 +90,44 @@ export default function EarningsScreen() {
   };
 
   const handleWithdraw = () => {
-    Alert.alert(
-      "Settlement Portal",
-      "Total earnings are automatically settled to your registered bank account every cycle. Manual withdrawal requests will be available soon.",
-      [{ text: "OK" }]
-    );
+    if (stats.withdrawable < 100) {
+      Alert.alert("Minimum Limit", "Minimum withdrawal amount is ₹100.");
+      return;
+    }
+    setWithdrawAmount(stats.withdrawable.toString());
+    setShowModal(true);
+  };
+
+  const submitWithdrawal = async () => {
+    const amountNum = parseFloat(withdrawAmount);
+    if (!amountNum || amountNum <= 0 || amountNum > stats.withdrawable) {
+      Alert.alert("Invalid Amount", "Please enter a valid amount within your balance.");
+      return;
+    }
+
+    if (payoutMethod === 'UPI' && !payoutDetails.upiId.includes('@')) {
+      Alert.alert("Invalid UPI ID", "Please enter a valid UPI ID (e.g., name@okaxis)");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await post('/provider/withdrawals', {
+        amount: amountNum,
+        payout_method: payoutMethod,
+        payout_details: payoutMethod === 'UPI' ? { upi_id: payoutDetails.upiId } : { acc_no: payoutDetails.accNo, ifsc: payoutDetails.ifsc }
+      });
+
+      if (res.data?.success) {
+        Alert.alert("Request Submitted", "Your withdrawal request is being processed. It usually takes 2-4 hours.");
+        setShowModal(false);
+        fetchEarnings(); // Refresh balance and history
+      }
+    } catch (error: any) {
+      Alert.alert("Error", error.response?.data?.message || "Failed to submit request");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const chartData = {
@@ -231,6 +278,104 @@ export default function EarningsScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Withdrawal Modal */}
+      <Modal
+        visible={showModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <GlassCard style={styles.modalContent} intensity={40}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Withdraw Funds</Text>
+              <TouchableOpacity onPress={() => setShowModal(false)}>
+                <Ionicons name="close-circle" size={28} color={colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>AMOUNT (₹)</Text>
+              <TextInput
+                style={styles.textInput}
+                value={withdrawAmount}
+                onChangeText={setWithdrawAmount}
+                keyboardType="numeric"
+                placeholder="Enter amount"
+                placeholderTextColor={colors.textMuted}
+              />
+              <Text style={styles.balanceInfo}>Max: ₹{stats.withdrawable}</Text>
+            </View>
+
+            <View style={styles.methodToggle}>
+              <TouchableOpacity 
+                style={[styles.methodBtn, payoutMethod === 'UPI' && styles.methodBtnActive]}
+                onPress={() => setPayoutMethod('UPI')}
+              >
+                <Text style={[styles.methodBtnText, payoutMethod === 'UPI' && styles.methodBtnTextActive]}>UPI</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.methodBtn, payoutMethod === 'BANK' && styles.methodBtnActive]}
+                onPress={() => setPayoutMethod('BANK')}
+              >
+                <Text style={[styles.methodBtnText, payoutMethod === 'BANK' && styles.methodBtnTextActive]}>BANK</Text>
+              </TouchableOpacity>
+            </View>
+
+            {payoutMethod === 'UPI' ? (
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>UPI ID</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={payoutDetails.upiId}
+                  onChangeText={(val) => setPayoutDetails({...payoutDetails, upiId: val})}
+                  placeholder="username@bank"
+                  autoCapitalize="none"
+                  placeholderTextColor={colors.textMuted}
+                />
+              </View>
+            ) : (
+              <>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>ACCOUNT NUMBER</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={payoutDetails.accNo}
+                    onChangeText={(val) => setPayoutDetails({...payoutDetails, accNo: val})}
+                    keyboardType="numeric"
+                    placeholder="Enter account number"
+                    placeholderTextColor={colors.textMuted}
+                  />
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>IFSC CODE</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={payoutDetails.ifsc}
+                    onChangeText={(val) => setPayoutDetails({...payoutDetails, ifsc: val.toUpperCase()})}
+                    autoCapitalize="characters"
+                    placeholder="e.g. SBIN0001234"
+                    placeholderTextColor={colors.textMuted}
+                  />
+                </View>
+              </>
+            )}
+
+            <TouchableOpacity 
+              style={[styles.submitBtn, submitting && { opacity: 0.7 }]} 
+              onPress={submitWithdrawal}
+              disabled={submitting}
+            >
+              {submitting ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text style={styles.submitBtnText}>Submit Request</Text>
+              )}
+            </TouchableOpacity>
+          </GlassCard>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -421,5 +566,91 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textMuted,
     fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    padding: 32,
+    paddingBottom: Platform.OS === 'ios' ? 48 : 32,
+    minHeight: 400,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: colors.textPrimary,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: colors.textMuted,
+    letterSpacing: 1.5,
+    marginBottom: 8,
+  },
+  textInput: {
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 16,
+    padding: 16,
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  balanceInfo: {
+    fontSize: 12,
+    color: colors.textMuted,
+    fontWeight: '600',
+    marginTop: 6,
+    textAlign: 'right',
+  },
+  methodToggle: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 16,
+    padding: 4,
+    marginBottom: 24,
+  },
+  methodBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 12,
+  },
+  methodBtnActive: {
+    backgroundColor: colors.surface,
+    ...colors.shadows.sm,
+  },
+  methodBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.textMuted,
+  },
+  methodBtnTextActive: {
+    color: colors.primary,
+  },
+  submitBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: 18,
+    paddingVertical: 18,
+    alignItems: 'center',
+    marginTop: 12,
+    ...colors.shadows.md,
+  },
+  submitBtnText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '900',
   },
 });

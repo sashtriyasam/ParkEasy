@@ -218,7 +218,7 @@ export default function ProviderDashboard() {
           <View style={styles.headerTop}>
             <Animated.View entering={FadeInDown.duration(800)}>
               <Text style={styles.greeting}>{getGreeting()},</Text>
-              <Text style={styles.userName}>{user?.name?.split(' ')[0] || 'Partner'}</Text>
+              <Text style={styles.userName}>{user?.full_name?.split(' ')[0] || 'Partner'}</Text>
             </Animated.View>
             <TouchableOpacity 
               onPress={() => router.push('/(provider)/scan')}

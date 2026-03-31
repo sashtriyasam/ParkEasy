@@ -13,6 +13,8 @@ router.use(restrictTo('PROVIDER', 'ADMIN'));
 // Analytics & Dashboard
 router.get('/analytics', providerController.getAnalytics);
 router.get('/earnings', providerController.getEarnings);
+router.get('/withdrawals', providerController.getWithdrawals);
+router.post('/withdrawals', providerController.requestWithdrawal);
 router.get('/dashboard/stats', providerController.getStats);
 router.get('/dashboard/revenue', providerController.getRevenueData);
 router.get('/dashboard/occupancy', providerController.getOccupancyData);

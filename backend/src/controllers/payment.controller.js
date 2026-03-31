@@ -77,26 +77,71 @@ exports.verifyPayment = async (req, res) => {
             vehicle_type
         );
 
-        // Update ticket with payment details
-        const updatedTicket = await prisma.ticket.update({
-            where: { id: ticket.id },
-            data: {
-                payment_id: razorpay_payment_id,
-                payment_status: 'PAID',
-                payment_method: 'CARD' // or 'UPI' depending on selection, defaulting to CARD/Razorpay
-            }
+        // --- FINANCIAL MODULE INTEGRATION ---
+        // 1. Get facility and provider info
+        const facility = await prisma.parkingFacility.findUnique({
+            where: { id: ticket.facility_id },
+            select: { provider_id: true, name: true }
+        });
+
+        if (!facility) throw new Error('Facility not found for ticket');
+
+        // 2. Calculate Fees (10% Platform Fee)
+        const totalAmount = parseFloat(req.body.amount || 0); // Amount should be passed in request or fetched from ticket
+        const platformFee = totalAmount * 0.10;
+        const netAmount = totalAmount - platformFee;
+
+        // 3. Atomic Financial Update
+        const updatedTicket = await prisma.$transaction(async (tx) => {
+            // A. Update ticket with payment details
+            const t = await tx.ticket.update({
+                where: { id: ticket.id },
+                data: {
+                    payment_id: razorpay_payment_id,
+                    payment_status: 'PAID',
+                    payment_method: 'UPI' // Default for this flow
+                }
+            });
+
+            // B. Credit Provider Balance
+            await tx.user.update({
+                where: { id: facility.provider_id },
+                data: {
+                    balance: { increment: netAmount }
+                }
+            });
+
+            // C. Log Platform Transaction
+            await tx.platformTransaction.create({
+                data: {
+                    ticket_id: ticket.id,
+                    amount: totalAmount,
+                    platform_fee: platformFee,
+                    net_amount: netAmount,
+                    type: 'TRANSACTION'
+                }
+            });
+
+            return t;
         });
 
         res.status(200).json({
             success: true,
-            message: 'Payment verified and booking confirmed',
-            data: updatedTicket
+            message: 'Payment verified and earnings settled',
+            data: {
+                ticket: updatedTicket,
+                settlement: {
+                    total: totalAmount,
+                    platform_fee: platformFee,
+                    net_credited: netAmount
+                }
+            }
         });
     } catch (error) {
         logger.error('Error verifying payment:', error);
-        res.status(500).json({
+        res.status(error.status || 500).json({
             success: false,
-            message: 'Internal server error during verification'
+            message: error.message || 'Internal server error during verification'
         });
     }
 };

@@ -59,9 +59,9 @@ export default function LoginScreen() {
     if (email === '1' && password === '1') {
       const mockUser: User = {
         id: 'mock-customer-id',
-        name: 'Alex Rivera',
+        full_name: 'Alex Rivera',
         email: 'alex@parkeasy.premium',
-        phone: '9876543210',
+        phone_number: '9876543210',
         role: 'customer'
       };
       await login(mockUser, 'mock-token', 'mock-refresh');
@@ -72,9 +72,9 @@ export default function LoginScreen() {
     if (email === '2' && password === '2') {
       const mockUser: User = {
         id: 'mock-provider-id',
-        name: 'Sarah Chen',
+        full_name: 'Sarah Chen',
         email: 'sarah@parkeasy.partner',
-        phone: '9123456789',
+        phone_number: '9123456789',
         role: 'provider'
       };
       await login(mockUser, 'mock-token', 'mock-refresh');
@@ -92,9 +92,9 @@ export default function LoginScreen() {
         const { user, accessToken, refreshToken } = response.data.data;
         const mappedUser: User = {
           id: user.id,
-          name: user.full_name,
+          full_name: user.full_name,
           email: user.email,
-          phone: user.phone_number || '',
+          phone_number: user.phone_number || '',
           role: user.role
         };
         

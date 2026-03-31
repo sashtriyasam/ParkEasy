@@ -55,6 +55,82 @@ const updateUserRole = asyncHandler(async (req, res, next) => {
     });
 });
 
+/**
+ * Get all pending withdrawals (Admin only)
+ */
+const getPendingWithdrawals = asyncHandler(async (req, res) => {
+    const withdrawals = await prisma.withdrawal.findMany({
+        where: { status: 'PENDING' },
+        include: {
+            provider: {
+                select: { id: true, email: true, full_name: true, phone_number: true }
+            }
+        },
+        orderBy: { created_at: 'asc' }
+    });
+
+    res.status(200).json({
+        status: 'success',
+        results: withdrawals.length,
+        data: withdrawals
+    });
+});
+
+/**
+ * Approve or Reject a withdrawal
+ */
+const processWithdrawal = asyncHandler(async (req, res, next) => {
+    const { withdrawalId } = req.params;
+    const { status, remarks } = req.body;
+
+    if (!['APPROVED', 'REJECTED'].includes(status)) {
+        return next(new AppError('Invalid status. Must be APPROVED or REJECTED', 400));
+    }
+
+    const withdrawal = await prisma.withdrawal.findUnique({
+        where: { id: withdrawalId }
+    });
+
+    if (!withdrawal) {
+        return next(new AppError('Withdrawal request not found', 404));
+    }
+
+    if (withdrawal.status !== 'PENDING') {
+        return next(new AppError(`Withdrawal has already been ${withdrawal.status.toLowerCase()}`, 400));
+    }
+
+    const updatedWithdrawal = await prisma.$transaction(async (tx) => {
+        const w = await tx.withdrawal.update({
+            where: { id: withdrawalId },
+            data: {
+                status,
+                processed_at: new Date(),
+                remarks
+            }
+        });
+
+        // If REJECTED, refund the balance to the provider
+        if (status === 'REJECTED') {
+            await tx.user.update({
+                where: { id: withdrawal.provider_id },
+                data: {
+                    balance: { increment: withdrawal.amount }
+                }
+            });
+        }
+
+        return w;
+    });
+
+    res.status(200).json({
+        status: 'success',
+        message: `Withdrawal successfully ${status.toLowerCase()}`,
+        data: updatedWithdrawal
+    });
+});
+
 module.exports = {
-    updateUserRole
+    updateUserRole,
+    getPendingWithdrawals,
+    processWithdrawal
 };

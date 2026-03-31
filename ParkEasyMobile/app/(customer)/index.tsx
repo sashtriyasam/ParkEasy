@@ -284,7 +284,7 @@ export default function HomeScreen() {
           style={StyleSheet.absoluteFill}
         />
         <Animated.View style={[styles.headerContent, headerTitleStyle]}>
-          <Text style={styles.greeting}>{getGreeting()}, {user?.name?.split(' ')[0] || 'User'}</Text>
+          <Text style={styles.greeting}>{getGreeting()}, {user?.full_name?.split(' ')[0] || 'User'}</Text>
           <Text style={styles.title}>Where are you{'\n'}parking today?</Text>
         </Animated.View>
         

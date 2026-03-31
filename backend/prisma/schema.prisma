@@ -17,6 +17,7 @@ model User {
   password_hash String
   full_name     String?
   role          String        @default("CUSTOMER")
+  balance       Decimal       @default(0) @db.Decimal(12, 2)
   push_token    String?
   created_at    DateTime      @default(now())
   updated_at    DateTime      @updatedAt
@@ -26,7 +27,55 @@ model User {
   vehicles           Vehicle[]
   favorites          Favorite[]
   refresh_tokens     RefreshToken[]
+  withdrawals        Withdrawal[]
+  settlements        Settlement[]
   @@map("users")
+}
+
+model Withdrawal {
+  id           String   @id @default(uuid())
+  user_id      String
+  user         User     @relation(fields: [user_id], references: [id])
+  amount       Decimal  @db.Decimal(12, 2)
+  status       String   @default("PENDING") // PENDING, APPROVED, COMPLETED, REJECTED
+  method       String   @default("UPI")     // UPI, BANK
+  account_info String?  @db.Text            // Encrypted or partial bank/UPI details
+  payout_id    String?  // External payment Gateway ID (e.g. Razorpay Fund Account ID)
+  error_msg    String?  @db.Text
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  @@index([user_id])
+  @@index([status])
+  @@map("withdrawals")
+}
+
+model Settlement {
+  id           String   @id @default(uuid())
+  user_id      String
+  user         User     @relation(fields: [user_id], references: [id])
+  amount       Decimal  @db.Decimal(12, 2)
+  ticket_count Int
+  status       String   @default("PENDING") // PENDING, SETTLED
+  period_start DateTime
+  period_end   DateTime
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  @@index([user_id])
+  @@map("settlements")
+}
+
+model PlatformTransaction {
+  id            String   @id @default(uuid())
+  ticket_id     String?  @unique
+  amount        Decimal  @db.Decimal(12, 2) // Total transaction amount
+  platform_fee  Decimal  @db.Decimal(12, 2) // Deducted fee
+  net_amount    Decimal  @db.Decimal(12, 2) // Net earnings for provider
+  type          String   // TRANSACTION, WITHDRAWAL, REFUND
+  created_at    DateTime @default(now())
+
+  @@map("platform_transactions")
 }
 model RefreshToken {
   id         String   @id @default(uuid())

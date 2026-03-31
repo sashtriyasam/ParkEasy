@@ -1,20 +1,20 @@
 # Simple Deployment Script
-echo "Starting build process..."
+Write-Output "Starting build process..."
 
 # Navigate to Frontend
-cd frontend
+Set-Location frontend
 
 # Clean
-echo "Cleaning..."
+Write-Output "Cleaning..."
 if (Test-Path node_modules) { Remove-Item -Recurse -Force node_modules }
 if (Test-Path dist) { Remove-Item -Recurse -Force dist }
 
 # Install
-echo "Installing dependencies..."
+Write-Output "Installing dependencies..."
 npm install
 
 # Build
-echo "Building..."
+Write-Output "Building..."
 npm run build
 
-echo "Build process complete."
+Write-Output "Build process complete."

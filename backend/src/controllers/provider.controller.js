@@ -932,16 +932,25 @@ const getEarnings = asyncHandler(async (req, res, next) => {
         }
     });
 
+    // 4. Pending Settlements (Sum of PENDING settlements if we use them, otherwise 0)
+    // For now, using balance directly as withdrawable
+    const user = await prisma.user.findUnique({
+        where: { id: providerId },
+        select: { balance: true }
+    });
+
+    const pendingWithdrawalsAgg = await prisma.withdrawal.aggregate({
+        where: { provider_id: providerId, status: 'PENDING' },
+        _sum: { amount: true }
+    });
+
     res.status(200).json({
         status: 'success',
         data: {
             totalRevenue: Number(totalAgg._sum.total_fee || 0),
-            // TODO: Subtract withdrawals and platform fees when Withdrawal model is implemented
-            withdrawableBalance: Number(totalAgg._sum.total_fee || 0), 
-            // TODO: Implement settlement tracking for pending payouts
-            pendingSettlements: 0, 
+            withdrawableBalance: Number(user.balance || 0),
+            pendingWithdrawals: Number(pendingWithdrawalsAgg._sum.amount || 0),
             thisMonthRevenue: Number(monthAgg._sum.total_fee || 0),
-            isApproximate: true, // Flag indicating financial values are current-estimate/MVP
             trend: {
                 labels: months,
                 data: trendData
@@ -954,6 +963,76 @@ const getEarnings = asyncHandler(async (req, res, next) => {
                 method: h.payment_method || 'Razorpay'
             }))
         }
+    });
+});
+
+/**
+ * Request a withdrawal (payout)
+ */
+const requestWithdrawal = asyncHandler(async (req, res, next) => {
+    const { amount, payout_method, payout_details } = req.body;
+    const providerId = req.user.id;
+
+    if (!amount || amount <= 0) {
+        return next(new AppError('Invalid withdrawal amount', 400));
+    }
+
+    // 1. Check current balance
+    const user = await prisma.user.findUnique({
+        where: { id: providerId },
+        select: { balance: true }
+    });
+
+    if (user.balance < amount) {
+        return next(new AppError('Insufficient balance for withdrawal', 400));
+    }
+
+    // 2. Atomic withdrawal creation and balance decrement
+    const withdrawal = await prisma.$transaction(async (tx) => {
+        // A. Create withdrawal record
+        const w = await tx.withdrawal.create({
+            data: {
+                provider_id: providerId,
+                amount: amount,
+                status: 'PENDING',
+                payout_method: payout_method || 'UPI',
+                payout_details: JSON.stringify(payout_details || {})
+            }
+        });
+
+        // B. Decrement balance
+        await tx.user.update({
+            where: { id: providerId },
+            data: {
+                balance: { decrement: amount }
+            }
+        });
+
+        return w;
+    });
+
+    res.status(201).json({
+        status: 'success',
+        message: 'Withdrawal request submitted successfully',
+        data: withdrawal
+    });
+});
+
+/**
+ * Get withdrawal history for provider
+ */
+const getWithdrawals = asyncHandler(async (req, res) => {
+    const providerId = req.user.id;
+
+    const withdrawals = await prisma.withdrawal.findMany({
+        where: { provider_id: providerId },
+        orderBy: { created_at: 'desc' }
+    });
+
+    res.status(200).json({
+        status: 'success',
+        results: withdrawals.length,
+        data: withdrawals
     });
 });
 
@@ -978,6 +1057,8 @@ module.exports = {
     updateFacilityPricing,
     checkVehicleByPlate,
     getAnalytics,
-    getEarnings
+    getEarnings,
+    requestWithdrawal,
+    getWithdrawals
 };
 
