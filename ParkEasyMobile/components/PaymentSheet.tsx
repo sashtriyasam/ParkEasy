@@ -16,6 +16,7 @@ import { Button } from './ui/Button';
 import RazorpayCheckout from 'react-native-razorpay';
 import { post } from '../services/api';
 import { useAuthStore } from '../store/authStore';
+import { VehicleType } from '../types';
 
 const { height } = Dimensions.get('window');
 
@@ -28,7 +29,7 @@ interface PaymentSheetProps {
   bookingId: string;
   slotId: string;
   vehicleNumber: string;
-  vehicleType: string;
+  vehicleType: VehicleType;
 }
 
 type PaymentMethod = 'upi' | 'card' | 'wallet';

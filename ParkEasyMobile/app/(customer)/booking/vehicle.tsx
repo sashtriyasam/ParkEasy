@@ -9,16 +9,18 @@ import {
   KeyboardAvoidingView, 
   Platform, 
   Dimensions, 
-  ActivityIndicator 
+  ActivityIndicator,
+  StatusBar
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeInUp, FadeInRight } from 'react-native-reanimated';
+import { BlurView } from 'expo-blur';
 import { useBookingFlowStore } from '../../../store/bookingFlowStore';
 import { get } from '../../../services/api';
-import { Button } from '../../../components/ui/Button';
 import { GlassCard } from '../../../components/ui/GlassCard';
+import { GlassButton } from '../../../components/ui/GlassButton';
 import { colors, VEHICLE_TYPE_COLORS } from '../../../constants/colors';
 import { Vehicle, VehicleType } from '../../../types';
 
@@ -71,69 +73,79 @@ export default function SelectVehicleScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <LinearGradient colors={['#FFFFFF', '#F8FAFC']} style={StyleSheet.absoluteFill} />
+      <StatusBar barStyle="light-content" />
       
+      {/* Procedural Header */}
       <View style={styles.header}>
-        <View style={styles.progressTrack}>
-          <Animated.View style={[styles.progressFill, { width: '33%' }]} />
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <Ionicons name="chevron-back" size={24} color="#FFF" />
+        </TouchableOpacity>
+        <View style={styles.progressContainer}>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: '33%' }]} />
+          </View>
+          <Text style={styles.progressLabel}>PROTOCOL PHASE 01: VEHICLE ID</Text>
         </View>
-        <Text style={styles.progressLabel}>Step 1 of 3: Vehicle Selection</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>Select Vehicle</Text>
+        <Animated.View entering={FadeInDown.duration(600).springify()}>
+          <Text style={styles.title}>IDENTIFY VEHICLE</Text>
+          <Text style={styles.subtitle}>Specify the node to be secured in the parking matrix.</Text>
+        </Animated.View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Saved Vehicles</Text>
+          <Text style={styles.sectionTitle}>KNOWN SIGNATURES</Text>
           {loading ? (
-            <ActivityIndicator color={colors.primary} style={{ alignSelf: 'flex-start', marginLeft: 24 }} />
+            <ActivityIndicator color={colors.primary} style={styles.loader} />
           ) : savedVehicles.length > 0 ? (
-            <View style={styles.savedContainer}>
-              {savedVehicles.map(vehicle => (
-                <GlassCard 
-                  key={vehicle.id} 
-                  style={styles.vehicleCard}
-                  onPress={() => handleSavedSelect(vehicle)}
-                >
-                  <View style={[styles.vehicleIconContainer, { backgroundColor: VEHICLE_TYPE_COLORS[vehicle.vehicle_type] + '15' }]}>
-                    <Ionicons 
-                      name={vehicleTypes.find(t => t.value === vehicle.vehicle_type)?.icon || 'car'} 
-                      size={24} 
-                      color={VEHICLE_TYPE_COLORS[vehicle.vehicle_type]} 
-                    />
-                  </View>
-                  <View style={styles.vehicleInfo}>
-                    <Text style={styles.vehicleNumber}>{vehicle.vehicle_number}</Text>
-                    <Text style={styles.vehicleNickname}>{vehicle.nickname || (vehicle.vehicle_type ? vehicle.vehicle_type.toUpperCase() : 'VEHICLE')}</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-                </GlassCard>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.savedScroll}>
+              {savedVehicles.map((vehicle, i) => (
+                <Animated.View key={vehicle.id} entering={FadeInRight.delay(i * 100)}>
+                  <TouchableOpacity onPress={() => handleSavedSelect(vehicle)}>
+                    <GlassCard style={styles.vehicleCard}>
+                      <View style={[styles.vehicleIcon, { backgroundColor: VEHICLE_TYPE_COLORS[vehicle.vehicle_type] + '20' }]}>
+                        <Ionicons 
+                          name={vehicleTypes.find(t => t.value === vehicle.vehicle_type)?.icon || 'car'} 
+                          size={24} 
+                          color={VEHICLE_TYPE_COLORS[vehicle.vehicle_type]} 
+                        />
+                      </View>
+                      <Text style={styles.vehicleNumber}>{vehicle.vehicle_number}</Text>
+                      <Text style={styles.vehicleNick}>{vehicle.nickname || 'PRIMARY'}</Text>
+                    </GlassCard>
+                  </TouchableOpacity>
+                </Animated.View>
               ))}
-            </View>
+            </ScrollView>
           ) : (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="car-outline" size={32} color={colors.textMuted} />
-              <Text style={styles.emptyText}>No saved vehicles yet.</Text>
-            </View>
+            <GlassCard style={styles.emptyCard}>
+              <Text style={styles.emptyText}>NO SAVED SIGNATURES DETECTED</Text>
+            </GlassCard>
           )}
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Or enter manually</Text>
+          <Text style={styles.sectionTitle}>MANUAL UPLINK</Text>
           <GlassCard style={styles.manualCard}>
-            <Text style={styles.inputLabel}>License Plate Number</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. MH12AB1234"
-              placeholderTextColor={colors.textMuted}
-              value={manualNumber}
-              onChangeText={(val) => setManualNumber(val.toUpperCase())}
-              autoCapitalize="characters"
-              maxLength={10}
-            />
+            <Text style={styles.inputLabel}>LICENSE PLATE</Text>
+            <View style={styles.inputWrapper}>
+              <TextInput
+                style={styles.input}
+                placeholder="REGISTRATION NO."
+                placeholderTextColor="rgba(255,255,255,0.2)"
+                value={manualNumber}
+                onChangeText={(val) => setManualNumber(val.toUpperCase())}
+                autoCapitalize="characters"
+                maxLength={10}
+              />
+              <View style={styles.inputGlow}>
+                <BlurView intensity={20} tint="light" style={StyleSheet.absoluteFill} />
+              </View>
+            </View>
             
-            <Text style={[styles.inputLabel, { marginTop: 20 }]}>Vehicle Type</Text>
-            <View style={styles.typeSelectorRow}>
+            <Text style={[styles.inputLabel, { marginTop: 24 }]}>NODE CLASS</Text>
+            <View style={styles.typeGrid}>
               {vehicleTypes.map(type => {
                 const isActive = manualType === type.value;
                 return (
@@ -141,18 +153,17 @@ export default function SelectVehicleScreen() {
                     key={type.value}
                     style={[
                       styles.typeChip,
-                      isActive && { backgroundColor: VEHICLE_TYPE_COLORS[type.value], borderColor: VEHICLE_TYPE_COLORS[type.value] }
+                      isActive && { borderColor: colors.primary, backgroundColor: colors.primary + '15' }
                     ]}
                     onPress={() => setManualType(type.value)}
-                    activeOpacity={0.7}
                   >
                     <Ionicons 
                       name={type.icon as any} 
-                      size={18} 
-                      color={isActive ? 'white' : colors.textSecondary} 
+                      size={20} 
+                      color={isActive ? colors.primary : 'rgba(255,255,255,0.4)'} 
                     />
-                    <Text style={[styles.typeText, isActive && styles.typeTextActive]}>
-                      {type.label}
+                    <Text style={[styles.typeText, isActive && { color: '#FFF' }]}>
+                      {type.label.toUpperCase()}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -160,180 +171,221 @@ export default function SelectVehicleScreen() {
             </View>
           </GlassCard>
         </View>
-        <View style={{ height: 120 }} />
+        <View style={{ height: 140 }} />
       </ScrollView>
 
-      <GlassCard style={styles.footer} intensity={90}>
-        <Button 
-          label="Continue to Payment" 
+      <View style={styles.footer}>
+        <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+        <GlassButton 
+          label="PROCEED TO PROTOCOL PHASE 02" 
           onPress={handleManualContinue} 
           disabled={!isManualValid}
-          size="lg"
           variant="primary"
         />
-      </GlassCard>
+      </View>
     </KeyboardAvoidingView>
   );
 }
 
+
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#0A0F1E',
   },
   header: {
     paddingTop: 60,
     paddingHorizontal: 24,
-    backgroundColor: colors.surface,
-    paddingBottom: 20,
-    ...colors.shadows.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    marginBottom: 20,
+  },
+  backBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  progressContainer: {
+    flex: 1,
   },
   progressTrack: {
-    height: 6,
-    backgroundColor: colors.border,
-    borderRadius: 3,
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 2,
     overflow: 'hidden',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   progressFill: {
     height: '100%',
     backgroundColor: colors.primary,
+    shadowColor: colors.primary,
+    shadowRadius: 10,
+    shadowOpacity: 0.5,
   },
   progressLabel: {
-    fontSize: 12,
+    fontSize: 9,
     color: colors.primary,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    fontWeight: '900',
+    letterSpacing: 2,
   },
   scrollContent: {
-    paddingVertical: 24,
+    paddingVertical: 12,
   },
   title: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '900',
-    color: colors.textPrimary,
+    color: '#FFF',
     paddingHorizontal: 24,
-    marginBottom: 32,
     letterSpacing: -1,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.4)',
+    paddingHorizontal: 24,
+    marginTop: 4,
+    lineHeight: 20,
+    marginBottom: 32,
   },
   section: {
     marginBottom: 32,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.textPrimary,
+    fontSize: 11,
+    fontWeight: '900',
+    color: 'rgba(255,255,255,0.3)',
     marginHorizontal: 24,
     marginBottom: 16,
-    letterSpacing: -0.5,
+    letterSpacing: 3,
   },
-  savedContainer: {
-    paddingHorizontal: 24,
+  savedScroll: {
+    paddingLeft: 24,
+    paddingRight: 8,
     gap: 16,
   },
   vehicleCard: {
+    width: 160,
+    padding: 20,
+    alignItems: 'center',
+    borderRadius: 24,
+  },
+  vehicleIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  vehicleNumber: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#FFF',
+    letterSpacing: 1,
+  },
+  vehicleNick: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.3)',
+    fontWeight: '900',
+    marginTop: 4,
+    letterSpacing: 1,
+  },
+  loader: {
+    alignSelf: 'flex-start',
+    marginLeft: 40,
+  },
+  emptyCard: {
+    marginHorizontal: 24,
+    padding: 30,
+    alignItems: 'center',
+    borderRadius: 24,
+    borderStyle: 'dashed',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  emptyText: {
+    color: 'rgba(255,255,255,0.2)',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 2,
+  },
+  manualCard: {
+    marginHorizontal: 24,
+    borderRadius: 32,
+    padding: 24,
+  },
+  inputLabel: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: 'rgba(255,255,255,0.3)',
+    marginBottom: 12,
+    letterSpacing: 2,
+  },
+  inputWrapper: {
+    position: 'relative',
+  },
+  input: {
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 20,
+    padding: 20,
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#FFF',
+    letterSpacing: 4,
+    textAlign: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  inputGlow: {
+    position: 'absolute',
+    bottom: -10,
+    alignSelf: 'center',
+    width: '60%',
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.primaryGlow,
+    overflow: 'hidden',
+  },
+  typeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  typeChip: {
+    flex: 1,
+    minWidth: '45%',
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
     borderRadius: 20,
-  },
-  vehicleIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-  },
-  vehicleInfo: {
-    flex: 1,
-  },
-  vehicleNumber: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    letterSpacing: 0.5,
-  },
-  vehicleNickname: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  emptyContainer: {
-    marginHorizontal: 24,
-    padding: 32,
-    borderRadius: 24,
-    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderStyle: Platform.OS === 'android' ? 'solid' : 'dashed',
-    alignItems: 'center',
-    gap: 8,
-  },
-  emptyText: {
-    color: colors.textMuted,
-    fontWeight: '600',
-  },
-  manualCard: {
-    marginHorizontal: 24,
-    borderRadius: 24,
-    padding: 20,
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.textSecondary,
-    marginBottom: 10,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  input: {
-    backgroundColor: '#F1F5F9',
-    borderRadius: 16,
-    padding: 18,
-    fontSize: 20,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    letterSpacing: 2,
-    textAlign: 'center',
-  },
-  typeSelectorRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  typeChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: 'white',
-    gap: 8,
-    ...colors.shadows.sm,
+    borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    gap: 12,
   },
   typeText: {
-    color: colors.textPrimary,
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  typeTextActive: {
-    color: 'white',
+    color: 'rgba(255,255,255,0.4)',
+    fontWeight: '900',
+    fontSize: 11,
+    letterSpacing: 1,
   },
   footer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 24,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    height: 120,
+    paddingHorizontal: 24,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
+    justifyContent: 'center',
+    overflow: 'hidden',
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
-    borderWidth: 0,
-    borderTopWidth: 1,
-  },
+  }
 });

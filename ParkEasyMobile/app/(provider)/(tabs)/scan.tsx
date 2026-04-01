@@ -7,13 +7,16 @@ import {
   Dimensions,
   ActivityIndicator,
   Vibration,
-  Platform
+  Platform,
+  StatusBar
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { useRouter } from 'expo-router';
+import { useNetInfo } from '@react-native-community/netinfo';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -22,38 +25,29 @@ import Animated, {
   withSequence,
   Easing,
   FadeIn,
-  FadeOut,
   ZoomIn,
-  SlideInUp
+  FadeOut
 } from 'react-native-reanimated';
 import { post } from '../../../services/api';
 import { useToast } from '../../../components/Toast';
+import { colors } from '../../../constants/colors';
+import { GlassCard } from '../../../components/ui/GlassCard';
+import { GlassButton } from '../../../components/ui/GlassButton';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 const scanAreaSize = width * 0.75;
 
-const COLORS = {
-  background: 'black',
-  text: 'white',
-  success: '#34d399',
-  warn: '#fbbf24',
-  danger: '#f87171',
-  overlay: 'rgba(8, 10, 15, 0.4)',
-  muted: 'rgba(255, 255, 255, 0.6)',
-  subtext: 'rgba(255, 255, 255, 0.7)',
-  quiet: 'rgba(255, 255, 255, 0.4)',
-  subtle: 'rgba(255, 255, 255, 0.05)',
-  border: 'rgba(255, 255, 255, 0.1)',
-  black: '#000000',
-};
-
 export default function QRScannerScreen() {
+  const router = useRouter();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);
   const [torchEnabled, setTorchEnabled] = useState(false);
   const { showToast } = useToast();
   const [result, setResult] = useState<{ status: 'success' | 'warning' | 'error', message: string, data?: any } | null>(null);
+  
+  const netInfo = useNetInfo();
+  const isConnected = netInfo.isConnected ?? false;
   
   const scanLineY = useSharedValue(0);
   const resetTimer = useRef<NodeJS.Timeout | null>(null);
@@ -65,8 +59,8 @@ export default function QRScannerScreen() {
     
     scanLineY.value = withRepeat(
       withSequence(
-        withTiming(scanAreaSize, { duration: 2000, easing: Easing.inOut(Easing.quad) }),
-        withTiming(0, { duration: 2000, easing: Easing.inOut(Easing.quad) })
+        withTiming(scanAreaSize, { duration: 2500, easing: Easing.inOut(Easing.quad) }),
+        withTiming(0, { duration: 2500, easing: Easing.inOut(Easing.quad) })
       ),
       -1,
       true
@@ -79,29 +73,25 @@ export default function QRScannerScreen() {
 
   const animatedLineStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: scanLineY.value }],
-    opacity: withTiming(scanned ? 0 : 0.8, { duration: 200 }),
+    opacity: withTiming(scanned ? 0 : 1, { duration: 200 }),
   }));
 
   if (!permission || !permission.granted) {
     return (
       <View style={styles.permissionContainer}>
-        <View style={styles.bgWrapper}>
-          <LinearGradient
-            colors={['#0f1219', '#080a0f']}
-            style={StyleSheet.absoluteFill}
-          />
-        </View>
-        <Animated.View entering={ZoomIn} style={styles.permissionCard}>
-          <View style={styles.permissionIconContainer}>
-            <Ionicons name="camera" size={40} color={COLORS.text} />
+        <StatusBar barStyle="light-content" />
+        <LinearGradient colors={['#0A0F1E', '#161B2E']} style={StyleSheet.absoluteFill} />
+        
+        <Animated.View entering={ZoomIn.duration(600)} style={styles.permissionCard}>
+          <View style={styles.permIconWrapper}>
+            <Ionicons name="camera" size={48} color={colors.primary} />
+            <View style={styles.permGlow} />
           </View>
-          <Text style={styles.permissionTitle}>Camera Access Required</Text>
-          <Text style={styles.permissionSub}>
-            Please grant camera access to scan customer checkout QR codes.
+          <Text style={styles.permTitle}>OPTICAL ACCESS REQUIRED</Text>
+          <Text style={styles.permSubtitle}>
+            System needs to initialize camera protocols to verify digital parking passes at the nodes.
           </Text>
-          <TouchableOpacity style={styles.grantBtn} onPress={requestPermission}>
-            <Text style={styles.grantBtnText}>Grant Permission</Text>
-          </TouchableOpacity>
+          <GlassButton label="GRANT ACCESS" onPress={requestPermission} variant="primary" />
         </Animated.View>
       </View>
     );
@@ -111,7 +101,7 @@ export default function QRScannerScreen() {
     if (scanned || loading) return;
     setScanned(true);
     setLoading(true);
-    Vibration.vibrate([0, 50, 10, 50]);
+    Vibration.vibrate([0, 50, 20, 50]);
 
     try {
       let ticketId = data;
@@ -126,31 +116,27 @@ export default function QRScannerScreen() {
       if (ticketData?.payment_status === 'PENDING') {
         setResult({
           status: 'warning',
-          message: `Payment Pending. Please collect ₹${ticketData.total_fee} from the customer.`,
+          message: `PROTOCOL WARNING: PENDING VALUATION DETECTED.`,
           data: ticketData
         });
       } else {
-        const successMsg = ticketData?.slot?.slot_number 
-          ? `Checkout verified for Slot ${ticketData.slot.slot_number}.`
-          : 'Checkout verified successfully.';
-          
         setResult({
           status: 'success',
-          message: successMsg,
+          message: `PROTOCOL SECURED: NODE ${ticketData?.slot?.slot_number} VERIFIED FOR EXIT.`,
           data: ticketData
         });
       }
     } catch (error: any) {
       setResult({
         status: 'error',
-        message: error.response?.data?.message || 'Invalid or expired QR code.'
+        message: error.response?.data?.message || 'INVALID SIGNATURE DETECTED.'
       });
       Vibration.vibrate(200);
     } finally {
       setLoading(false);
       resetTimer.current = setTimeout(() => {
         handleReset();
-      }, 10000);
+      }, 15000);
     }
   };
 
@@ -163,75 +149,97 @@ export default function QRScannerScreen() {
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
       <CameraView
         style={StyleSheet.absoluteFillObject}
         onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
         barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
         enableTorch={torchEnabled}
       >
+        <LinearGradient 
+          colors={['rgba(10, 15, 30, 0.7)', 'transparent', 'rgba(10, 15, 30, 0.7)']} 
+          style={StyleSheet.absoluteFill} 
+        />
+        
+        {/* Procedural Overlay UI */}
         <View style={styles.overlay}>
           <View style={styles.header}>
-            <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-              <BlurView intensity={30} tint="dark" style={styles.backBlur}>
-                <Ionicons name="chevron-back" size={24} color={COLORS.text} />
+            <TouchableOpacity style={styles.navBtn} onPress={() => router.back()}>
+              <BlurView intensity={30} tint="dark" style={styles.navBlur}>
+                <Ionicons name="chevron-back" size={24} color="#FFF" />
               </BlurView>
             </TouchableOpacity>
             
             <View style={styles.headerInfo}>
-              <Text style={styles.headerText}>Exit Scanner</Text>
-              <Text style={styles.headerSubtext}>Scan checkout QR code</Text>
+              <Text style={styles.headerTitle}>SECURE SCANNER</Text>
+              <Text style={styles.headerSubtitle}>PROTOCOL PHASE: VERIFICATION</Text>
             </View>
 
             <TouchableOpacity 
-              style={[styles.torchBtn, torchEnabled && styles.torchActive]} 
+              style={[styles.navBtn, torchEnabled && styles.torchActive]} 
               onPress={() => setTorchEnabled(!torchEnabled)}
             >
-              <BlurView intensity={30} tint="dark" style={styles.backBlur}>
-                <Ionicons name={torchEnabled ? "flashlight" : "flashlight-outline"} size={22} color={COLORS.text} />
+              <BlurView intensity={30} tint="dark" style={styles.navBlur}>
+                <Ionicons name={torchEnabled ? "flashlight" : "flashlight-outline"} size={22} color="#FFF" />
               </BlurView>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.scanArea}>
-            <View style={styles.frameContainer}>
+          <View style={styles.scanViewport}>
+            <View style={styles.targetFrame}>
+              {/* Corners */}
               <View style={[styles.corner, styles.tl]} />
               <View style={[styles.corner, styles.tr]} />
               <View style={[styles.corner, styles.bl]} />
               <View style={[styles.corner, styles.br]} />
 
               {!scanned && (
-                <Animated.View style={[styles.scanLine, animatedLineStyle]} />
+                <Animated.View style={[styles.scanLine, animatedLineStyle]}>
+                  <LinearGradient
+                    colors={['transparent', colors.primary, 'transparent']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={StyleSheet.absoluteFill}
+                  />
+                  <View style={styles.lineGlow} />
+                </Animated.View>
               )}
 
               {loading && (
-                <BlurView intensity={60} tint="dark" style={styles.stateOverlay}>
-                  <ActivityIndicator size="large" color={COLORS.text} />
-                  <Text style={styles.stateText}>Processing...</Text>
-                </BlurView>
+                <View style={styles.processingMask}>
+                  <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+                  <ActivityIndicator size="large" color={colors.primary} />
+                  <Text style={styles.processingText}>ANALYZING SIGNATURE...</Text>
+                </View>
               )}
 
               {result && (
-                <Animated.View entering={ZoomIn} style={styles.stateOverlay}>
-                  <BlurView intensity={90} tint="dark" style={styles.resultCard}>
+                <Animated.View entering={ZoomIn.duration(400)} style={styles.resultMask}>
+                  <BlurView intensity={90} tint="dark" style={StyleSheet.absoluteFill} />
+                  <View style={styles.resultContent}>
                     <View style={[
-                      styles.resultIcon, 
-                      { backgroundColor: result.status === 'success' ? COLORS.success : result.status === 'warning' ? COLORS.warn : COLORS.danger }
+                      styles.resultIconWrapper, 
+                      { backgroundColor: result.status === 'success' ? colors.success + '20' : result.status === 'warning' ? '#FACC1520' : colors.danger + '20' }
                     ]}>
                       <Ionicons 
-                        name={result.status === 'success' ? 'checkmark' : result.status === 'warning' ? 'alert' : 'close'} 
-                        size={32} 
-                        color={COLORS.black} 
+                        name={result.status === 'success' ? 'shield-checkmark' : result.status === 'warning' ? 'alert-circle' : 'close-circle'} 
+                        size={48} 
+                        color={result.status === 'success' ? colors.success : result.status === 'warning' ? '#FACC15' : colors.danger} 
                       />
+                      <View style={[styles.iconRipple, { borderColor: result.status === 'success' ? colors.success : colors.danger }]} />
                     </View>
-                    <Text style={styles.resultTitle}>
-                      {result.status === 'success' ? 'Verified' : result.status === 'warning' ? 'Action Needed' : 'Error'}
+                    <Text style={[
+                      styles.resultStatus,
+                      { color: result.status === 'success' ? colors.success : result.status === 'warning' ? '#FACC15' : colors.danger }
+                    ]}>
+                      {result.status === 'success' ? 'ACCESS GRANTED' : result.status === 'warning' ? 'VALUATION REQUIRED' : 'ACCESS DENIED'}
                     </Text>
-                    <Text style={styles.resultBody}>{result.message}</Text>
+                    <Text style={styles.resultDetails}>{result.message}</Text>
                     
-                    <TouchableOpacity style={styles.resetBtn} onPress={handleReset}>
-                      <Text style={styles.resetBtnText}>Scan Again</Text>
+                    <TouchableOpacity style={styles.resetPill} onPress={handleReset}>
+                      <Text style={styles.resetPillText}>INITIALIZE NEXT SCAN</Text>
                     </TouchableOpacity>
-                  </BlurView>
+                  </View>
                 </Animated.View>
               )}
             </View>
@@ -239,10 +247,16 @@ export default function QRScannerScreen() {
 
           <View style={styles.footer}>
             {!result && !loading && (
-              <Animated.View entering={FadeIn} style={styles.helpBox}>
-                <Text style={styles.helpText}>Center the QR code within the frame</Text>
+              <Animated.View entering={FadeIn.delay(500)} style={styles.hintBox}>
+                <BlurView intensity={20} tint="dark" style={styles.hintBlur}>
+                   <Text style={styles.hintText}>ALIGN PASS SIGNATURE WITHIN FRAME</Text>
+                </BlurView>
               </Animated.View>
             )}
+            <View style={styles.statusIndicator}>
+               <View style={[styles.statusDot, { backgroundColor: isConnected ? colors.success : colors.danger }]} />
+               <Text style={styles.statusLabel}>{isConnected ? 'SECURE UPLINK ACTIVE' : 'NODE DISCONNECTED'}</Text>
+            </View>
           </View>
         </View>
       </CameraView>
@@ -250,204 +264,258 @@ export default function QRScannerScreen() {
   );
 }
 
+// Fallback removed for genuine connectivity check in QRScannerScreen
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#000',
   },
   overlay: {
     flex: 1,
-    backgroundColor: COLORS.overlay,
   },
   header: {
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingHorizontal: 24,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    zIndex: 100,
   },
-  backBtn: {
-    borderRadius: 15,
-    overflow: 'hidden',
-  },
-  backBlur: {
+  navBtn: {
     width: 44,
     height: 44,
-    alignItems: 'center',
+    borderRadius: 14,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  navBlur: {
+    flex: 1,
     justifyContent: 'center',
+    alignItems: 'center',
+  },
+  torchActive: {
+    backgroundColor: colors.primary + '30',
+    borderColor: colors.primary,
   },
   headerInfo: {
     alignItems: 'center',
   },
-  headerText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.text,
+  headerTitle: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#FFF',
+    letterSpacing: 3,
   },
-  headerSubtext: {
-    fontSize: 12,
-    color: COLORS.muted,
-    marginTop: 2,
+  headerSubtitle: {
+    fontSize: 9,
+    color: 'rgba(255,255,255,0.4)',
+    fontWeight: '800',
+    marginTop: 4,
+    letterSpacing: 1,
   },
-  torchBtn: {
-    borderRadius: 15,
-    overflow: 'hidden',
-  },
-  torchActive: {
-    backgroundColor: COLORS.success,
-  },
-  scanArea: {
+  scanViewport: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  frameContainer: {
+  targetFrame: {
     width: scanAreaSize,
     height: scanAreaSize,
     position: 'relative',
+    borderRadius: 32,
+    overflow: 'hidden',
   },
   corner: {
     position: 'absolute',
-    width: 30,
-    height: 30,
-    borderColor: COLORS.text,
-    borderWidth: 3,
+    width: 40,
+    height: 40,
+    borderColor: colors.primary,
+    borderWidth: 4,
   },
-  tl: { top: 0, left: 0, borderBottomWidth: 0, borderRightWidth: 0, borderTopLeftRadius: 12 },
-  tr: { top: 0, right: 0, borderBottomWidth: 0, borderLeftWidth: 0, borderTopRightRadius: 12 },
-  bl: { bottom: 0, left: 0, borderTopWidth: 0, borderRightWidth: 0, borderBottomLeftRadius: 12 },
-  br: { bottom: 0, right: 0, borderTopWidth: 0, borderLeftWidth: 0, borderBottomRightRadius: 12 },
+  tl: { top: 0, left: 0, borderBottomWidth: 0, borderRightWidth: 0, borderTopLeftRadius: 32 },
+  tr: { top: 0, right: 0, borderBottomWidth: 0, borderLeftWidth: 0, borderTopRightRadius: 32 },
+  bl: { bottom: 0, left: 0, borderTopWidth: 0, borderRightWidth: 0, borderBottomLeftRadius: 32 },
+  br: { bottom: 0, right: 0, borderTopWidth: 0, borderLeftWidth: 0, borderBottomRightRadius: 32 },
   scanLine: {
     width: '100%',
-    height: 2,
-    backgroundColor: COLORS.text,
+    height: 4,
     position: 'absolute',
-    shadowColor: COLORS.text,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 10,
-    elevation: 10,
+    zIndex: 10,
   },
-  stateOverlay: {
+  lineGlow: {
+    position: 'absolute',
+    width: '100%',
+    height: 20,
+    top: -8,
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 15,
+    elevation: 8,
+    opacity: 0.3,
+  },
+  processingMask: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 20,
-    overflow: 'hidden',
     zIndex: 50,
   },
-  stateText: {
-    color: COLORS.text,
-    fontSize: 15,
-    fontWeight: '600',
-    marginTop: 15,
+  processingText: {
+    color: '#FFF',
+    fontSize: 11,
+    fontWeight: '900',
+    marginTop: 20,
+    letterSpacing: 2,
   },
-  resultCard: {
-    width: '100%',
-    height: '100%',
-    padding: 24,
+  resultMask: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 100,
+  },
+  resultContent: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 32,
   },
-  resultIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+  resultIconWrapper: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
+    position: 'relative',
   },
-  resultTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: 10,
+  iconRipple: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 1,
+    opacity: 0.2,
   },
-  resultBody: {
-    fontSize: 15,
-    color: COLORS.subtext,
+  resultStatus: {
+    fontSize: 20,
+    fontWeight: '900',
+    marginBottom: 12,
+    letterSpacing: 1.5,
+  },
+  resultDetails: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.6)',
     textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 30,
-  },
-  resetBtn: {
-    backgroundColor: COLORS.text,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 14,
-  },
-  resetBtnText: {
-    fontSize: 15,
+    lineHeight: 20,
     fontWeight: '600',
-    color: COLORS.black,
+    marginBottom: 40,
+  },
+  resetPill: {
+    backgroundColor: '#FFF',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 20,
+    shadowColor: '#FFF',
+    shadowRadius: 20,
+    shadowOpacity: 0.3,
+  },
+  resetPillText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#000',
+    letterSpacing: 1,
   },
   footer: {
-    paddingBottom: 80,
+    paddingBottom: 60,
     alignItems: 'center',
   },
-  helpBox: {
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+  hintBox: {
     borderRadius: 20,
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: 'rgba(255,255,255,0.1)',
+    marginBottom: 32,
   },
-  helpText: {
-    color: COLORS.text,
-    fontSize: 13,
-    fontWeight: '500',
+  hintBlur: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  hintText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  statusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusLabel: {
+    fontSize: 9,
+    color: 'rgba(255,255,255,0.3)',
+    fontWeight: '900',
+    letterSpacing: 1,
   },
   permissionContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 30,
-  },
-  bgWrapper: {
-    ...StyleSheet.absoluteFillObject,
+    padding: 32,
   },
   permissionCard: {
     width: '100%',
-    backgroundColor: COLORS.subtle,
-    borderRadius: 32,
-    padding: 40,
-    alignItems: 'center',
+    padding: 32,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255,255,255,0.03)',
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
   },
-  permissionIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 25,
-    backgroundColor: COLORS.subtle,
+  permIconWrapper: {
+    width: 90,
+    height: 90,
+    borderRadius: 30,
+    backgroundColor: colors.primary + '10',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 25,
+    marginBottom: 32,
+    position: 'relative',
   },
-  permissionTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: 12,
+  permGlow: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    backgroundColor: colors.primary,
+    borderRadius: 40,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 20,
+    elevation: 10,
+    opacity: 0.2,
   },
-  permissionSub: {
-    fontSize: 15,
-    color: COLORS.quiet,
+  permTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#FFF',
+    letterSpacing: 2,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  permSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.4)',
     textAlign: 'center',
     lineHeight: 22,
-    marginBottom: 35,
-  },
-  grantBtn: {
-    width: '100%',
-    backgroundColor: COLORS.text,
-    paddingVertical: 16,
-    borderRadius: 16,
-    alignItems: 'center',
-  },
-  grantBtnText: {
-    color: COLORS.black,
-    fontSize: 16,
     fontWeight: '600',
+    marginBottom: 40,
   },
 });

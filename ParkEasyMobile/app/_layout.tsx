@@ -24,7 +24,7 @@ function InitialLayout() {
 
     const inAuthGroup = segments[0] === '(auth)';
 
-    if (!user && !inAuthGroup) {
+    if (!user && !inAuthGroup && segments.length > 0) {
       router.replace('/(auth)/login');
     } else if (user) {
       const role = user.role?.toLowerCase();
@@ -33,12 +33,12 @@ function InitialLayout() {
         if (role === 'customer') {
           router.replace('/(customer)');
         } else if (role === 'provider') {
-          // Explicitly redirect to the tabs index
           router.replace('/(provider)/(tabs)');
         }
       }
     }
-  }, [user, isInitialized, segments]);
+
+  }, [user, isInitialized, segments, router]);
 
   return <Slot />;
 }

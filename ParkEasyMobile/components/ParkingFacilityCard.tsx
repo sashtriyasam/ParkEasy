@@ -2,10 +2,14 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
+import { ComponentProps } from 'react';
+
+type IconName = ComponentProps<typeof Ionicons>['name'];
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { ParkingFacility } from '../types';
 import { GlassCard } from './ui/GlassCard';
 import { colors } from '../constants/colors';
+import { formatCurrency } from '../utils/format';
 
 interface ParkingFacilityCardProps {
   facility: ParkingFacility;
@@ -41,51 +45,78 @@ export const ParkingFacilityCard: React.FC<ParkingFacilityCardProps> = ({ facili
 
   const statusColor = getStatusColor(facility.available_slots);
 
+  const getAmenityIcon = (amenity: string): IconName => {
+    const a = amenity.toLowerCase();
+    if (a.includes('valet')) return 'car-sport';
+    if (a.includes('ev') || a.includes('charging')) return 'flash';
+    if (a.includes('cctv') || a.includes('security')) return 'shield-checkmark';
+    if (a.includes('disability') || a.includes('accessible')) return 'body';
+    return 'star';
+  };
+
   return (
     <GlassCard style={[styles.container, style]} onPress={onPress}>
       <View style={styles.imageWrapper}>
         <Image
-          source={facility.images?.[0] || 'https://via.placeholder.com/400x200'} 
+          source={facility.images?.[0] || 'https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&q=80&w=400'} 
           style={styles.image}
           contentFit="cover"
           transition={300}
         />
-        <View style={styles.priceOverlay}>
-          <Text style={styles.currency}>₹</Text>
-          <Text style={styles.priceValue}>{Math.round(facility.price_per_hour || 0)}</Text>
+        <View style={styles.priceBadge}>
+          <Text style={styles.priceLabel}>{formatCurrency(facility.price_per_hour)}</Text>
           <Text style={styles.priceUnit}>/hr</Text>
         </View>
         
-        {distance !== undefined && (
-          <View style={styles.distanceBadge}>
-            <Ionicons name="navigate-outline" size={10} color={colors.textPrimary} />
-            <Text style={styles.distanceText}>{distance.toFixed(1)} km</Text>
+        {facility.verified && (
+          <View style={styles.verifiedBadge}>
+            <Ionicons name="shield-checkmark" size={12} color="#FFF" />
           </View>
         )}
       </View>
 
       <View style={styles.content}>
-        <View style={styles.headerRow}>
+        <View style={styles.header}>
           <Text style={styles.name} numberOfLines={1}>{facility.name}</Text>
-          {facility.rating != null && (
-            <View style={styles.ratingContainer}>
-              <Ionicons name="star" size={12} color={colors.warning} />
+          {facility.rating !== null && facility.rating !== undefined && (
+            <View style={styles.ratingBox}>
+              <Ionicons name="star" size={10} color={colors.warning} />
               <Text style={styles.ratingText}>{facility.rating}</Text>
             </View>
           )}
         </View>
 
-        <Text style={styles.address} numberOfLines={1}>{facility.address}</Text>
-        
-        <View style={styles.footerRow}>
-          <View style={styles.statusContainer}>
-            <Animated.View style={[styles.statusDot, { backgroundColor: statusColor }, animatedDotStyle]} />
-            <Text style={[styles.slotsText, { color: statusColor }]}>
-              {facility.available_slots} slots available
-            </Text>
+        <View style={styles.addressRow}>
+          <Ionicons name="location-outline" size={12} color={colors.textSecondary} />
+          <Text style={styles.address} numberOfLines={1}>{facility.address}</Text>
+        </View>
+
+        <View style={styles.divider} />
+
+        <View style={styles.footer}>
+          <View style={styles.statsRow}>
+            <View style={styles.availability}>
+              <Animated.View style={[styles.dot, { backgroundColor: statusColor }, animatedDotStyle]} />
+              <Text style={[styles.slotsText, { color: statusColor }]}>
+                {facility.available_slots} Slots
+              </Text>
+            </View>
+            
+            {distance !== undefined && (
+              <View style={styles.distanceBox}>
+                <Ionicons name="navigate-outline" size={10} color={colors.primary} />
+                <Text style={styles.distanceText}>{distance.toFixed(1)} km</Text>
+              </View>
+            )}
           </View>
-          
-          <Ionicons name="chevron-forward-circle" size={24} color={colors.primary} />
+
+          <View style={styles.amenities}>
+            {facility.amenities?.slice(0, 3).map((amenity) => (
+              <View key={amenity} style={styles.amenityIcon}>
+                <Ionicons name={getAmenityIcon(amenity)} size={12} color="rgba(255,255,255,0.6)" />
+              </View>
+            ))}
+          </View>
         </View>
       </View>
     </GlassCard>
@@ -94,72 +125,64 @@ export const ParkingFacilityCard: React.FC<ParkingFacilityCardProps> = ({ facili
 
 const styles = StyleSheet.create({
   container: {
-    width: 290,
-    marginRight: 20,
+    width: 280,
+    marginRight: 16,
     padding: 0,
-    paddingBottom: 4,
+    overflow: 'hidden',
   },
   imageWrapper: {
     width: '100%',
-    height: 140,
+    height: 120,
     position: 'relative',
   },
   image: {
     width: '100%',
     height: '100%',
-    backgroundColor: colors.border,
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
-  priceOverlay: {
+  priceBadge: {
     position: 'absolute',
-    top: 12,
-    left: 12,
-    backgroundColor: colors.surface,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    ...colors.shadows.md,
-  },
-  currency: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: colors.primary,
-    marginRight: 1,
-  },
-  priceValue: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  priceUnit: {
-    fontSize: 10,
-    color: colors.textSecondary,
-    marginLeft: 1,
-  },
-  distanceBadge: {
-    position: 'absolute',
-    bottom: 12,
-    right: 12,
-    backgroundColor: colors.glassSurface,
+    top: 10,
+    left: 10,
+    backgroundColor: colors.primary,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    borderWidth: 1,
-    borderColor: colors.glassBorder,
+    alignItems: 'baseline',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
   },
-  distanceText: {
-    fontSize: 11,
-    color: colors.textPrimary,
-    fontWeight: '700',
+  priceLabel: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  priceUnit: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 9,
+    fontWeight: '600',
+    marginLeft: 1,
+  },
+  verifiedBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: colors.success,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFF',
   },
   content: {
-    padding: 14,
+    padding: 12,
   },
-  headerRow: {
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -167,48 +190,87 @@ const styles = StyleSheet.create({
   },
   name: {
     flex: 1,
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    letterSpacing: -0.5,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFF',
+    letterSpacing: -0.2,
   },
-  ratingContainer: {
+  ratingBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: 'rgba(255, 159, 10, 0.1)',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
   },
   ratingText: {
-    fontSize: 12,
+    color: colors.warning,
+    fontSize: 10,
     fontWeight: '700',
-    color: colors.primary,
+  },
+  addressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 12,
   },
   address: {
-    fontSize: 13,
+    fontSize: 11,
     color: colors.textSecondary,
-    marginBottom: 12,
-    fontWeight: '500',
+    flex: 1,
   },
-  footerRow: {
+  divider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    marginBottom: 10,
+  },
+  footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  statusContainer: {
+  statsRow: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
   },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  availability: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   slotsText: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '700',
   },
+  distanceBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  distanceText: {
+    fontSize: 11,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  amenities: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  amenityIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  }
 });
+

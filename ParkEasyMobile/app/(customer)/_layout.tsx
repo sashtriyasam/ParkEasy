@@ -1,5 +1,7 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import { StyleSheet, View, Platform, Text } from 'react-native';
 import { colors } from '../../constants/colors';
 
 export default function CustomerLayout() {
@@ -9,27 +11,34 @@ export default function CustomerLayout() {
         headerShown: false,
         tabBarStyle: {
           position: 'absolute',
-          bottom: 25,
+          bottom: 24,
           left: 20,
           right: 20,
-          elevation: 5,
-          backgroundColor: 'rgba(255, 255, 255, 0.9)', // Glass effect
-          borderRadius: 24,
           height: 64,
-          paddingBottom: 10,
-          paddingTop: 8,
-          borderTopColor: 'transparent',
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 10 },
-          shadowOpacity: 0.1,
-          shadowRadius: 15,
+          borderRadius: 32,
+          backgroundColor: 'transparent',
+          borderTopWidth: 0,
+          elevation: 0,
+          paddingBottom: 0,
         },
+        tabBarBackground: () => (
+          <View style={styles.tabBarBackgroundContainer}>
+            {Platform.OS === 'ios' ? (
+              <BlurView 
+                intensity={25} 
+                tint="dark" 
+                style={[StyleSheet.absoluteFill, styles.tabBarBlur]} 
+              />
+            ) : (
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(10, 15, 30, 0.95)' }]} />
+            )}
+            <View style={styles.tabBarBorder} />
+          </View>
+        ),
         tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textMuted,
+        tabBarInactiveTintColor: colors.textSecondary,
         tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: '600',
-          marginBottom: 4,
+          display: 'none', // Uber-style clean minimalist icons
         },
       }}
     >
@@ -37,37 +46,94 @@ export default function CustomerLayout() {
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? "home" : "home-outline"} size={22} color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <View style={focused && styles.activeIconContainer}>
+              <Ionicons name={focused ? "map" : "map-outline"} size={24} color={color} />
+              {focused && <View style={styles.activeGlow} />}
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="search"
         options={{
           title: 'Search',
-          tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? "search" : "search-outline"} size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="passes"
-        options={{
-          title: 'Passes',
-          tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? "card" : "card-outline"} size={22} color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <View style={focused && styles.activeIconContainer}>
+              <Ionicons name={focused ? "search" : "search-outline"} size={24} color={color} />
+              {focused && <View style={styles.activeGlow} />}
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="tickets"
         options={{
           title: 'Tickets',
-          tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? "ticket" : "ticket-outline"} size={22} color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <View style={focused && styles.activeIconContainer}>
+              <Ionicons name={focused ? "ticket" : "ticket-outline"} size={24} color={color} />
+              {focused && <View style={styles.activeGlow} />}
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="passes"
+        options={{
+          title: 'Passes',
+          tabBarIcon: ({ color, focused }) => (
+            <View style={focused && styles.activeIconContainer}>
+              <Ionicons name={focused ? "card" : "card-outline"} size={24} color={color} />
+              {focused && <View style={styles.activeGlow} />}
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? "person" : "person-outline"} size={22} color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <View style={focused && styles.activeIconContainer}>
+              <Ionicons name={focused ? "person" : "person-outline"} size={24} color={color} />
+              {focused && <View style={styles.activeGlow} />}
+            </View>
+          ),
         }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  tabBarBackgroundContainer: {
+    flex: 1,
+    borderRadius: 32,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    ...colors.shadows.glass,
+  },
+  tabBarBlur: {
+    borderRadius: 32,
+  },
+  tabBarBorder: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 32,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  activeIconContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeGlow: {
+    position: 'absolute',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.primaryGlow,
+    zIndex: -1,
+  }
+});
+
