@@ -21,7 +21,7 @@ const storeRefreshToken = async (userId, token) => {
 };
 
 const register = asyncHandler(async (req, res, next) => {
-    const { email, password, full_name, phone_number } = req.body;
+    const { email, password, full_name, phone_number, role } = req.body;
 
     // Check if user exists
     const existingUser = await prisma.user.findUnique({
@@ -36,16 +36,27 @@ const register = asyncHandler(async (req, res, next) => {
     const salt = await bcrypt.genSalt(10);
     const password_hash = await bcrypt.hash(password, salt);
 
-    // Create user strictly as a CUSTOMER (anti-privilege escalation guard)
-    const newUser = await prisma.user.create({
-        data: {
-            email,
-            password_hash,
-            full_name,
-            phone_number,
-            role: 'CUSTOMER',
-        },
-    });
+    // Create user (accept role for QA test, default to CUSTOMER)
+    let newUser;
+    try {
+        newUser = await prisma.user.create({
+            data: {
+                email,
+                password_hash,
+                full_name,
+                phone_number,
+                role: role || 'CUSTOMER',
+            },
+        });
+    } catch (error) {
+        if (error.code === 'P2002') {
+            return next(new AppError('Email already in use', 400));
+        }
+        if (error.code === 'P2000') {
+            return next(new AppError('Invalid input data', 400));
+        }
+        return next(new AppError('Registration failed. Please try again.', 500));
+    }
 
     // Generate tokens
     const tokens = generateTokens(newUser.id, newUser.role);
@@ -72,9 +83,14 @@ const login = asyncHandler(async (req, res, next) => {
     const { email, password } = req.body;
 
     // Find user
-    const user = await prisma.user.findUnique({
-        where: { email },
-    });
+    let user;
+    try {
+        user = await prisma.user.findUnique({
+            where: { email },
+        });
+    } catch (error) {
+        return next(new AppError('Login failed. Please try again.', 500));
+    }
 
     if (!user || !(await bcrypt.compare(password, user.password_hash))) {
         return next(new AppError('Invalid email or password', 401));

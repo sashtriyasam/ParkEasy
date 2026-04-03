@@ -21,6 +21,20 @@ try {
  * @returns {Promise<Object>} Razorpay order object
  */
 async function createPaymentOrder(amount, currency = 'INR', metadata = {}) {
+    // Phase 12: Mock Mode for Testing/Dev without real keys
+    const isMock = !process.env.RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID === 'rzp_test_demo';
+    
+    if (isMock) {
+        logger.info('Using Mock Payment Order (missing or test Razorpay keys)');
+        return {
+            id: `order_mock_${Date.now()}`,
+            amount: Math.round(amount * 100),
+            currency,
+            status: 'created',
+            notes: metadata
+        };
+    }
+
     try {
         const options = {
             amount: Math.round(amount * 100), // Convert to paise

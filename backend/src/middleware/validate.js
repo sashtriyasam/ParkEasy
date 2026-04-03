@@ -17,7 +17,10 @@ const validate = (schema) => (req, res, next) => {
     next();
   } catch (err) {
     if (err instanceof ZodError) {
-      const message = err.errors.map((e) => e.message).join(', ');
+      const issues = err.errors || err.issues || [];
+      const message = issues.length > 0 
+        ? issues.map((e) => e.message).join(', ')
+        : err.message || 'Validation failed';
       return next(new AppError(message, 400));
     }
 

@@ -8,6 +8,14 @@ const AppError = require('../utils/AppError');
  * Create a Razorpay order for a booking (Ticket)
  */
 exports.createOrder = async (req, res) => {
+    // Guard: check Razorpay is configured
+    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET || 
+        process.env.RAZORPAY_KEY_ID === 'rzp_test_demo') {
+        return res.status(503).json({
+            success: false,
+            message: 'Payment service is not configured. Please contact support.'
+        });
+    }
     try {
         const { amount, facility_id, slot_id } = req.body;
 

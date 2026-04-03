@@ -438,12 +438,12 @@ const getFacilityDetails = asyncHandler(async (req, res, next) => {
 
     // Calculate total slots
     const totalSlots = facility.floors.reduce((sum, floor) =>
-        sum + floor.parking_slots.length, 0
+        sum + (floor.parking_slots?.length || 0), 0
     );
 
     // Calculate occupied slots
     const occupiedSlots = facility.floors.reduce((sum, floor) =>
-        sum + floor.parking_slots.filter(s => s.status === 'OCCUPIED').length, 0
+        sum + (floor.parking_slots?.filter(s => s.status === 'OCCUPIED').length || 0), 0
     );
 
     // Calculate today's revenue
@@ -469,7 +469,7 @@ const getFacilityDetails = asyncHandler(async (req, res, next) => {
             _count: { parking_slots: totalSlots },
             slots: totalSlots,
             occupancy: totalSlots > 0 ? (occupiedSlots / totalSlots) * 100 : 0,
-            revenue: todayRevenue._sum.total_fee || 0
+            revenue: Number(todayRevenue._sum.total_fee || 0)
         }
     });
 });
@@ -491,7 +491,7 @@ const deleteSlot = asyncHandler(async (req, res, next) => {
         return next(new AppError('Cannot delete occupied or reserved slot', 400));
     }
 
-    await prisma.parkingSlot.delete({ where: { id } });
+    await prisma.parkingSlot.delete({ where: { id: slotId } });
 
     res.status(204).json({ status: 'success', data: null });
 });
@@ -514,17 +514,26 @@ const bulkCreateSlotsByFacility = asyncHandler(async (req, res, next) => {
     logger.debug(`Facility found: ${facility.id}`);
 
     // Find or create floor
-    let floor = await prisma.floor.findFirst({
-        where: { facility_id: facilityId, floor_number: parseInt(floor_number) }
-    });
+    let floor = null;
+    const floorNum = parseInt(floor_number || 0);
+
+    if (req.body.floor_id) {
+        floor = await prisma.floor.findUnique({ where: { id: req.body.floor_id } });
+    }
+
+    if (!floor) {
+        floor = await prisma.floor.findFirst({
+            where: { facility_id: facilityId, floor_number: floorNum }
+        });
+    }
 
     if (!floor) {
         logger.debug('Creating new floor');
         floor = await prisma.floor.create({
             data: {
                 facility_id: facilityId,
-                floor_number: parseInt(floor_number),
-                floor_name: `Floor ${floor_number}`
+                floor_number: floorNum,
+                floor_name: `Floor ${floorNum}`
             }
         });
     }
@@ -534,11 +543,12 @@ const bulkCreateSlotsByFacility = asyncHandler(async (req, res, next) => {
     // Generate slot data
     const slots = [];
     const slotPrefix = prefix ? prefix.toUpperCase() : '';
+    const startNum = parseInt(start_number) || 1;
 
     for (let i = 0; i < parseInt(count); i++) {
         slots.push({
             floor_id: floor.id,
-            slot_number: `${slotPrefix}${parseInt(start_number) + i}`,
+            slot_number: `${slotPrefix}${startNum + i}`,
             vehicle_type: vehicle_type.toUpperCase(),
             status: 'FREE',
             is_active: true

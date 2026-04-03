@@ -7,9 +7,8 @@ const handleCastErrorDB = (err) => {
 };
 
 const handleDuplicateFieldsDB = (err) => {
-    // Prisma unique constraint error code: P2002
     if (err.code === 'P2002') {
-        const fields = err.meta.target.join(', ');
+        const fields = err.meta?.target ? err.meta.target.join(', ') : 'unknown field';
         const message = `Duplicate field value: ${fields}. Please use another value!`;
         return new AppError(message, 400);
     }
@@ -47,11 +46,15 @@ module.exports = (err, req, res, next) => {
     err.statusCode = err.statusCode || 500;
     err.status = err.status || 'error';
 
+    // Log error for debugging
+    console.error('ERROR 💥:', err);
+
     if (process.env.NODE_ENV === 'development') {
         sendErrorDev(err, res);
     } else {
-        let error = { ...err };
-        error.message = err.message;
+        // We want to preserve the original error object for the Prisma checks
+        // because spread operation { ...err } strips the non-enumerable properties like .code
+        let error = err;
 
         // Prisma specific error handling could be added here
         if (error.code === 'P2002') error = handleDuplicateFieldsDB(error);

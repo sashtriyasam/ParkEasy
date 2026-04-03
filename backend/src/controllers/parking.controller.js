@@ -50,18 +50,23 @@ const getMyFacilities = asyncHandler(async (req, res) => {
             floors: {
                 include: {
                     _count: {
-                        select: { slots: true }
+                        select: { parking_slots: true }
                     }
                 }
             } 
         },
     });
 
-    // Map to include a flattened total_slots count for the dashboard gauge
-    const formattedFacilities = facilities.map(f => ({
-        ...f,
-        total_slots: f.floors.reduce((acc, floor) => acc + (floor._count?.slots || 0), 0)
-    }));
+    const formattedFacilities = facilities.map(f => {
+        let total = 0;
+        if (f.floors) {
+            total = f.floors.reduce((acc, floor) => acc + (floor._count?.parking_slots || 0), 0);
+        }
+        return {
+            ...f,
+            total_slots: total
+        };
+    });
 
     res.status(200).json({ status: 'success', results: formattedFacilities.length, data: formattedFacilities });
 });
@@ -103,7 +108,8 @@ const getFacility = asyncHandler(async (req, res, next) => {
 // --- Floors ---
 
 const addFloor = asyncHandler(async (req, res, next) => {
-    const { facility_id, floor_number, floor_name } = req.body;
+    const { floor_number, floor_name } = req.body;
+    const facility_id = req.body.facility_id || req.params.facilityId;
 
     // Verify ownership
     const facility = await prisma.parkingFacility.findUnique({ where: { id: facility_id } });

@@ -215,9 +215,9 @@ const getAvailableSlots = async (facilityId, filters = {}) => {
     // Group by floor
     const slotsByFloor = {};
     slots.forEach(slot => {
-        const floorKey = slot.floor.floor_name || `Floor ${slot.floor.floor_number}`;
-        if (!slotsByFloor[floorKey]) slotsByFloor[floorKey] = [];
-        slotsByFloor[floorKey].push({
+        const floorName = slot.floor.floor_name || `Floor ${slot.floor.floor_number}`;
+        if (!slotsByFloor[floorName]) slotsByFloor[floorName] = [];
+        slotsByFloor[floorName].push({
             id: slot.id,
             slot_number: slot.slot_number,
             vehicle_type: slot.vehicle_type,

@@ -20,6 +20,7 @@ model User {
   role          String        @default("CUSTOMER")
   balance       Decimal       @default(0) @db.Decimal(12, 2)
   push_token    String?
+  phone_number  String?       @unique
   created_at    DateTime      @default(now())
   updated_at    DateTime      @updatedAt
   parking_facilities ParkingFacility[]
