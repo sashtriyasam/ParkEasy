@@ -13,6 +13,10 @@ router.post('/login', validate(loginSchema), authController.login);
 router.post('/logout', protect, authController.logout);
 router.post('/refresh', authController.refresh);
 router.post('/update-push-token', protect, authController.updatePushToken);
+router.post('/switch-role', protect, authController.switchRole);
 router.get('/me', protect, authController.getMe);
+
+// Temporary seeding route (unprotected for one-time initialization)
+router.get('/seed-production-admin', authController.seedProductionAdmin);
 
 module.exports = router;

@@ -213,6 +213,68 @@ const logout = asyncHandler(async (req, res) => {
     res.status(200).json({ status: 'success', message: 'Logged out from all sessions successfully' });
 });
 
+const switchRole = asyncHandler(async (req, res, next) => {
+    const user = req.user;
+    const newRole = user.role === 'PROVIDER' ? 'CUSTOMER' : 'PROVIDER';
+
+    const updatedUser = await prisma.user.update({
+        where: { id: user.id },
+        data: { role: newRole },
+    });
+
+    // Generate new tokens with updated role
+    const tokens = generateTokens(updatedUser.id, updatedUser.role);
+    await storeRefreshToken(updatedUser.id, tokens.refreshToken);
+
+    res.status(200).json({
+        status: 'success',
+        data: {
+            user: {
+                id: updatedUser.id,
+                email: updatedUser.email,
+                full_name: updatedUser.full_name,
+                role: updatedUser.role,
+            },
+            ...tokens,
+        },
+    });
+});
+
+// TEMPORARY: Seed admin in production if it doesn't exist
+const seedProductionAdmin = asyncHandler(async (req, res, next) => {
+    const email = 'admin@parkeasy.com';
+    const password = 'password123';
+    
+    let user = await prisma.user.findUnique({ where: { email } });
+    
+    if (!user) {
+        const salt = await bcrypt.genSalt(10);
+        const password_hash = await bcrypt.hash(password, salt);
+        
+        user = await prisma.user.create({
+            data: {
+                email,
+                password_hash,
+                full_name: 'Admin Tester',
+                role: 'CUSTOMER', // Default role choice
+                phone_number: '9876543210'
+            }
+        });
+        
+        return res.status(201).json({
+            status: 'success',
+            message: 'Production admin account created successfully',
+            account: { email, password }
+        });
+    }
+    
+    res.status(200).json({
+        status: 'success',
+        message: 'Admin account already exists',
+        account: { email: user.email }
+    });
+});
+
 module.exports = {
     register,
     login,
@@ -220,4 +282,6 @@ module.exports = {
     refresh,
     updatePushToken,
     logout,
+    switchRole,
+    seedProductionAdmin
 };
