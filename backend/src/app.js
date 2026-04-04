@@ -38,7 +38,8 @@ const allowedOrigins = [
     'http://localhost:3000',
     process.env.FRONTEND_URL,
     process.env.MOBILE_APP_URL,
-    process.env.RENDER_APP_URL, // Add this
+    process.env.RENDER_APP_URL,
+    'https://parkeasy-backend-uy3x.onrender.com', // Active Render URL
 ].filter(Boolean);
 
 app.use(cors({
@@ -53,6 +54,16 @@ app.use(cors({
     },
     credentials: true,
 }));
+
+// Base Root Route (Avoids 404 in Render Dashboard)
+app.get('/', (req, res) => {
+    res.status(200).json({
+        message: 'ParkEasy API is running!',
+        health: '/health',
+        documentation: '/api-docs',
+        version
+    });
+});
 
 // Health Check (Infrastructure checks should not be rate-limited)
 app.get('/health', async (req, res) => {
