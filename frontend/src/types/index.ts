@@ -44,6 +44,10 @@ export interface Facility {
   reviewCountSummary?: string;
   currency?: CurrencyCode;
   price_per_hour?: number;
+  pricing_rules?: any[];
+  total_slots?: number;
+  available_slots?: number;
+  occupancy?: number;
 }
 
 export interface ParkingSlot {
@@ -251,6 +255,8 @@ export interface OfflineBookingData {
   vehicle_number: string;
   vehicle_type: VehicleType;
   slot_id?: string;
+  customer_name?: string;
+  customer_phone?: string;
   facilityId?: string;
   vehicleNumber?: string;
   vehicleType?: VehicleType;

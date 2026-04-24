@@ -30,6 +30,7 @@ export interface Facility {
     longitude?: number;
     contact_number?: string;
     description?: string;
+    pricing_rules?: any[];
     // Computed fields from backend usually
     _count?: {
         parking_slots?: number;
@@ -119,7 +120,7 @@ export const providerService = {
         await apiClient.delete(`/provider/facilities/${id}`);
     },
 
-    getFacilityDetails: async (id: string): Promise<Facility> => {
+    getFacilityDetails: async (id: string): Promise<any> => {
         const response = await apiClient.get(`/provider/facilities/${id}`);
         return response.data.data;
     },
