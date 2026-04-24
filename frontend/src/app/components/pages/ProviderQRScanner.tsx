@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  QrCode, 
   ArrowLeft, 
   Zap, 
   Info, 
@@ -9,10 +8,10 @@ import {
   ScanLine, 
   Keyboard,
   CheckCircle2,
-  XCircle,
   Loader2,
-  MapPin,
-  Car
+  Car,
+  Camera,
+  Search
 } from 'lucide-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { Button } from '@/app/components/ui/button';
@@ -29,37 +28,42 @@ export function ProviderQRScanner() {
     const [isLoading, setIsLoading] = useState(false);
     const [scanResult, setScanResult] = useState<any>(null);
 
-    // Real-time scanning logic
     useEffect(() => {
         let scanner: Html5QrcodeScanner | null = null;
 
         if (isScanning && !scanResult) {
-            // Give the DOM a moment to render the #reader element
             const timer = setTimeout(() => {
+                const readerElement = document.getElementById('reader');
+                if (!readerElement) return;
+
                 scanner = new Html5QrcodeScanner(
                     "reader",
-                    { fps: 10, qrbox: { width: 250, height: 250 } },
+                    { 
+                        fps: 10, 
+                        qrbox: { width: 250, height: 250 },
+                        aspectRatio: 1.0,
+                        showTorchButtonIfSupported: true
+                    },
                     /* verbose= */ false
                 );
 
                 scanner.render(
                     (decodedText) => {
-                        // On success
                         if (scanner) {
-                            scanner.clear().catch(error => console.error("Failed to clear scanner", error));
+                            scanner.clear().catch(err => console.error("Scanner clear failed", err));
                         }
                         handleVerify(decodedText);
                     },
                     (errorMessage) => {
-                        // Silently handle scan errors (common during active scanning)
+                        // Ignore periodic scan errors
                     }
                 );
-            }, 300);
+            }, 500);
 
             return () => {
                 clearTimeout(timer);
                 if (scanner) {
-                    scanner.clear().catch(error => console.error("Failed to clear scanner during cleanup", error));
+                    scanner.clear().catch(err => console.error("Scanner clear failed during cleanup", err));
                 }
             };
         }
@@ -71,21 +75,21 @@ export function ProviderQRScanner() {
 
         setIsLoading(true);
         try {
-            // First check if it's an entry or exit
-            // We'll use the check-vehicle endpoint which returns active status
             const response = await axios.get(`/api/v1/provider/check-vehicle?ticketId=${tid}`);
             const data = response.data.data;
             
             if (!data) {
-                toast.error('Invalid Ticket ID or QR Code');
+                toast.error('Invalid Ticket');
+                setIsScanning(true);
                 return;
             }
 
             setScanResult(data);
-            toast.success('Ticket Verified Successfully');
+            toast.success('Ticket Verified');
             setIsScanning(false);
         } catch (error) {
-            toast.error('Verification failed. Invalid ticket.');
+            toast.error('Verification failed');
+            setIsScanning(true);
             console.error(error);
         } finally {
             setIsLoading(false);
@@ -94,174 +98,169 @@ export function ProviderQRScanner() {
 
     const handleProcessAction = async () => {
         if (!scanResult) return;
-
         setIsLoading(true);
         try {
-            // Process exit
             await axios.post('/api/v1/bookings/end', { ticket_id: scanResult.id });
-            toast.success('Check-out processed successfully');
+            toast.success('Processed successfully');
             setScanResult(null);
             setIsScanning(true);
         } catch (error) {
-            toast.error('Failed to process action');
-            console.error(error);
+            toast.error('Failed to process');
         } finally {
             setIsLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen bg-[#0F172A] pt-20 pb-12 overflow-hidden relative">
-            {/* Background elements */}
-            <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
-                <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-500 rounded-full blur-[128px]" />
-                <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-500 rounded-full blur-[128px]" />
-            </div>
-
+        <div className="min-h-screen bg-slate-50 dark:bg-[#020617] pt-20 pb-12 relative">
+            {/* Design accents */}
+            <div className="absolute top-0 left-0 w-full h-64 bg-primary/5 dark:bg-primary/10 pointer-events-none" />
+            
             <div className="max-w-xl mx-auto px-6 relative z-10">
-                <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center justify-between mb-10">
                     <Button 
                         variant="ghost" 
                         size="sm" 
-                        className="text-slate-400 hover:text-white font-bold"
+                        className="font-bold gap-2 text-muted-foreground hover:text-foreground"
                         onClick={() => navigate(-1)}
                     >
-                        <ArrowLeft className="w-4 h-4 mr-2" /> Cancel
+                        <ArrowLeft className="w-4 h-4" /> Cancel
                     </Button>
-                    <div className="flex items-center gap-2 text-indigo-400 font-black tracking-tighter">
-                        <ShieldCheck className="w-5 h-5" />
-                        SECURE GATEWAY
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 rounded-full text-primary font-black text-[10px] tracking-wider uppercase">
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        Secure Gateway
                     </div>
                 </div>
 
-                <div className="text-center mb-10">
-                    <h1 className="text-3xl font-black text-white tracking-tight mb-2">Smart QR Scanner</h1>
-                    <p className="text-slate-400 font-medium">Position the customer QR code within the frame</p>
+                <div className="text-center mb-12">
+                    <h1 className="text-4xl font-black text-foreground tracking-tighter mb-3">Gate Control</h1>
+                    <p className="text-muted-foreground font-medium max-w-xs mx-auto">Instant check-in and check-out via smart scanning</p>
                 </div>
 
                 <AnimatePresence mode="wait">
                     {isScanning && !scanResult ? (
                         <motion.div
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.9 }}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -20 }}
                             className="space-y-8"
                         >
-                            {/* Scanner Frame */}
-                            <div className="relative aspect-square max-w-[320px] mx-auto group overflow-hidden rounded-[2.5rem]">
-                                {/* The actual camera feed element */}
-                                <div id="reader" className="w-full h-full" />
-                                
-                                {/* Overlay styling to match design */}
-                                <div className="absolute inset-0 pointer-events-none border-2 border-indigo-500/30 rounded-[2.5rem]" />
-                                
-                                {/* Corner Accents */}
-                                <div className="absolute top-0 left-0 w-16 h-16 border-t-4 border-l-4 border-indigo-500 rounded-tl-[2.5rem] pointer-events-none" />
-                                <div className="absolute top-0 right-0 w-16 h-16 border-t-4 border-r-4 border-indigo-500 rounded-tr-[2.5rem] pointer-events-none" />
-                                <div className="absolute bottom-0 left-0 w-16 h-16 border-b-4 border-l-4 border-indigo-500 rounded-bl-[2.5rem] pointer-events-none" />
-                                <div className="absolute bottom-0 right-0 w-16 h-16 border-b-4 border-r-4 border-indigo-500 rounded-br-[2.5rem] pointer-events-none" />
+                            {/* Scanner Section */}
+                            <div className="relative">
+                                <div className="absolute -inset-4 bg-primary/10 rounded-[3rem] blur-2xl opacity-50" />
+                                <div className="relative bg-white dark:bg-slate-900 rounded-[2.5rem] overflow-hidden border border-border shadow-2xl">
+                                    <div className="p-4 border-b border-border flex items-center justify-between bg-slate-50 dark:bg-slate-800/50">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Live Camera</span>
+                                        </div>
+                                        <Camera className="w-4 h-4 text-muted-foreground" />
+                                    </div>
 
-                                {/* Scanning Animation Line */}
-                                <motion.div 
-                                    className="absolute left-6 right-6 h-1 bg-gradient-to-r from-transparent via-indigo-400 to-transparent shadow-[0_0_15px_rgba(99,102,241,0.5)] z-20 pointer-events-none"
-                                    animate={{ top: ['15%', '85%', '15%'] }}
-                                    transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                                />
-                            </div>
-
-                            {/* Manual Input Fallback */}
-                            <div className="bg-slate-800/50 backdrop-blur-md p-6 rounded-[2rem] border border-slate-700">
-                                <div className="flex items-center gap-2 mb-4 text-xs font-black text-slate-400 uppercase tracking-widest">
-                                    <Keyboard className="w-4 h-4" />
-                                    Manual Entry
-                                </div>
-                                <div className="flex gap-2">
-                                    <Input 
-                                        placeholder="Enter Ticket ID (e.g. TICK-1234)" 
-                                        className="bg-slate-900/50 border-slate-700 text-white font-bold h-12 rounded-xl focus:ring-indigo-500"
-                                        value={ticketId}
-                                        onChange={(e) => setTicketId(e.target.value.toUpperCase())}
-                                    />
-                                    <Button 
-                                        className="h-12 px-6 bg-indigo-600 hover:bg-indigo-700 font-bold rounded-xl"
-                                        onClick={() => handleVerify(ticketId)}
-                                        disabled={isLoading || !ticketId}
-                                    >
-                                        {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Verify'}
-                                    </Button>
+                                    <div className="relative aspect-square">
+                                        <div id="reader" className="w-full h-full" />
+                                        
+                                        {/* Viewfinder Overlays */}
+                                        <div className="absolute inset-0 pointer-events-none">
+                                            {/* Corner brackets */}
+                                            <div className="absolute top-10 left-10 w-12 h-12 border-t-4 border-l-4 border-primary rounded-tl-2xl" />
+                                            <div className="absolute top-10 right-10 w-12 h-12 border-t-4 border-r-4 border-primary rounded-tr-2xl" />
+                                            <div className="absolute bottom-10 left-10 w-12 h-12 border-b-4 border-l-4 border-primary rounded-bl-2xl" />
+                                            <div className="absolute bottom-10 right-10 w-12 h-12 border-b-4 border-r-4 border-primary rounded-br-2xl" />
+                                            
+                                            {/* Scanning Line */}
+                                            <motion.div 
+                                                className="absolute left-10 right-10 h-0.5 bg-primary/50 shadow-[0_0_15px_var(--primary)]"
+                                                animate={{ top: ['20%', '80%', '20%'] }}
+                                                transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="flex justify-center">
-                                <p className="text-slate-500 text-xs font-medium flex items-center gap-2">
-                                    <Zap className="w-3 h-3" />
-                                    Instant online/offline ticket validation
-                                </p>
-                            </div>
+                            {/* Manual Entry */}
+                            <Card className="rounded-[2rem] border-border bg-white/50 dark:bg-slate-900/50 backdrop-blur-md">
+                                <CardContent className="p-6">
+                                    <div className="flex items-center gap-2 mb-4 text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                                        <Keyboard className="w-3.5 h-3.5" />
+                                        Manual ID Verification
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <Input 
+                                            placeholder="TICK-XXXX" 
+                                            className="h-12 rounded-xl bg-background border-border font-bold uppercase"
+                                            value={ticketId}
+                                            onChange={(e) => setTicketId(e.target.value)}
+                                        />
+                                        <Button 
+                                            className="h-12 px-6 font-black rounded-xl shadow-lg shadow-primary/20"
+                                            onClick={() => handleVerify(ticketId)}
+                                            disabled={isLoading || !ticketId}
+                                        >
+                                            {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
+                                        </Button>
+                                    </div>
+                                </CardContent>
+                            </Card>
                         </motion.div>
                     ) : (
                         <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
                             className="space-y-6"
                         >
-                            <Card className="bg-slate-800/80 backdrop-blur-xl border-slate-700 rounded-[2.5rem] overflow-hidden shadow-2xl">
-                                <div className="p-8 text-center border-b border-slate-700 bg-indigo-600/10">
-                                    <div className="w-20 h-20 bg-indigo-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-500/20">
-                                        <CheckCircle2 className="w-10 h-10 text-white" />
+                            <Card className="rounded-[3rem] border-primary/20 bg-white dark:bg-slate-900 overflow-hidden shadow-2xl shadow-primary/10">
+                                <div className="p-10 text-center bg-primary/5 border-b border-border">
+                                    <div className="w-24 h-24 bg-primary rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-xl shadow-primary/30 rotate-3">
+                                        <CheckCircle2 className="w-12 h-12 text-white" />
                                     </div>
-                                    <h3 className="text-2xl font-black text-white">Ticket Validated</h3>
-                                    <p className="text-indigo-400 font-bold uppercase text-[10px] tracking-widest mt-1">Ready for {scanResult?.status === 'ACTIVE' ? 'Checkout' : 'Entry'}</p>
+                                    <h3 className="text-3xl font-black tracking-tighter">Verified</h3>
+                                    <p className="text-primary font-bold uppercase text-[10px] tracking-widest mt-2 px-3 py-1 bg-primary/10 rounded-full inline-block">
+                                        {scanResult?.status === 'ACTIVE' ? 'Checkout Ready' : 'Entry Approved'}
+                                    </p>
                                 </div>
                                 
-                                <CardContent className="p-8 space-y-6">
+                                <CardContent className="p-10 space-y-8">
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-700">
-                                            <p className="text-[10px] font-black text-slate-500 uppercase mb-1">Vehicle No.</p>
-                                            <p className="text-lg font-black text-white">{scanResult?.vehicle_number}</p>
+                                        <div className="p-5 rounded-[2rem] bg-slate-50 dark:bg-slate-800/50 border border-border">
+                                            <p className="text-[10px] font-black text-muted-foreground uppercase mb-2">Plate</p>
+                                            <p className="text-xl font-black tracking-tight">{scanResult?.vehicle_number}</p>
                                         </div>
-                                        <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-700">
-                                            <p className="text-[10px] font-black text-slate-500 uppercase mb-1">Slot</p>
-                                            <p className="text-lg font-black text-indigo-400">{scanResult?.slot?.slot_number || 'Auto'}</p>
+                                        <div className="p-5 rounded-[2rem] bg-primary/5 border border-primary/10">
+                                            <p className="text-[10px] font-black text-primary/60 uppercase mb-2">Slot</p>
+                                            <p className="text-xl font-black text-primary tracking-tight">{scanResult?.slot?.slot_number || 'A-1'}</p>
                                         </div>
                                     </div>
 
                                     <div className="space-y-4">
-                                        <div className="flex items-start gap-3">
-                                            <div className="p-2 bg-slate-900 rounded-lg">
-                                                <Car className="w-4 h-4 text-slate-400" />
+                                        <div className="flex items-center gap-4 p-4 rounded-2xl border border-dashed border-border">
+                                            <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                                                <Car className="w-5 h-5 text-muted-foreground" />
                                             </div>
                                             <div>
-                                                <p className="text-[10px] font-black text-slate-500 uppercase">Facility</p>
-                                                <p className="text-sm font-bold text-white">{scanResult?.facility?.name || 'Your Facility'}</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-start gap-3">
-                                            <div className="p-2 bg-slate-900 rounded-lg">
-                                                <ScanLine className="w-4 h-4 text-slate-400" />
-                                            </div>
-                                            <div>
-                                                <p className="text-[10px] font-black text-slate-500 uppercase">Ticket ID</p>
-                                                <p className="text-sm font-mono text-slate-300">{scanResult?.id}</p>
+                                                <p className="text-[10px] font-black text-muted-foreground uppercase">Facility</p>
+                                                <p className="text-sm font-bold">{scanResult?.facility?.name || 'Main Gate'}</p>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div className="pt-4 border-t border-slate-700 flex gap-3">
+                                    <div className="pt-6 flex flex-col gap-3">
                                         <Button 
-                                            variant="outline" 
-                                            className="flex-1 border-slate-700 text-slate-400 hover:text-white font-bold h-12"
-                                            onClick={() => { setScanResult(null); setIsScanning(true); }}
-                                        >
-                                            Scan Another
-                                        </Button>
-                                        <Button 
-                                            className="flex-[2] bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-12 shadow-lg shadow-indigo-500/20"
+                                            size="lg"
+                                            className="w-full h-16 rounded-[1.5rem] font-black text-lg shadow-xl shadow-primary/30 gap-3"
                                             onClick={handleProcessAction}
                                             disabled={isLoading}
                                         >
-                                            {isLoading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Zap className="w-4 h-4 mr-2" />}
+                                            {isLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Zap className="w-6 h-6" />}
                                             Process {scanResult?.status === 'ACTIVE' ? 'Exit' : 'Entry'}
+                                        </Button>
+                                        <Button 
+                                            variant="ghost" 
+                                            className="font-bold text-muted-foreground"
+                                            onClick={() => { setScanResult(null); setIsScanning(true); }}
+                                        >
+                                            Scan Next Vehicle
                                         </Button>
                                     </div>
                                 </CardContent>
@@ -270,15 +269,44 @@ export function ProviderQRScanner() {
                     )}
                 </AnimatePresence>
 
-                <div className="mt-12 text-center">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800/30 rounded-full border border-slate-700/50">
-                        <Info className="w-4 h-4 text-slate-500" />
-                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">
-                            Ensure good lighting for faster scanning
+                <div className="mt-16 text-center">
+                    <div className="inline-flex items-center gap-3 px-5 py-2.5 bg-white dark:bg-slate-900 rounded-full border border-border shadow-sm">
+                        <div className="w-2 h-2 rounded-full bg-primary" />
+                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                            Official Secure Gateway Interface
                         </p>
                     </div>
                 </div>
             </div>
+
+            {/* Custom Scanner Styling Injection */}
+            <style dangerouslySetInnerHTML={{ __html: `
+                #reader { border: none !important; }
+                #reader__scan_region { display: flex; justify-content: center; }
+                #reader__dashboard { padding: 20px !important; border: none !important; }
+                #reader__dashboard_section_csr button { 
+                    background: #1e40af !important; 
+                    color: white !important; 
+                    border-radius: 12px !important; 
+                    padding: 10px 20px !important;
+                    font-weight: 800 !important;
+                    text-transform: uppercase !important;
+                    font-size: 12px !important;
+                    border: none !important;
+                }
+                #reader__camera_selection {
+                    background: transparent !important;
+                    border: 1px solid #e5e7eb !important;
+                    border-radius: 8px !important;
+                    padding: 5px !important;
+                    font-size: 12px !important;
+                    margin-bottom: 10px !important;
+                }
+                .dark #reader__camera_selection {
+                    border-color: #334155 !important;
+                    color: white !important;
+                }
+            `}} />
         </div>
     );
 }
