@@ -1062,7 +1062,7 @@ const createOfflineBooking = asyncHandler(async (req, res, next) => {
         });
 
         if (!freeSlot) {
-            return next(new AppError(`No free slots available for ${vehicleType} in this facility.`, 404));
+            return next(new AppError(`No free slots available for ${vehicleType} in this facility.`, 400));
         }
         slotId = freeSlot.id;
     } else {
