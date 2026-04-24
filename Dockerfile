@@ -32,4 +32,4 @@ COPY --from=frontend-builder /frontend/dist ./public
 RUN chown -R appuser:appgroup /app
 USER appuser
 EXPOSE 5000
-CMD ["node", "index.js"]
+CMD ["npm", "start"]
