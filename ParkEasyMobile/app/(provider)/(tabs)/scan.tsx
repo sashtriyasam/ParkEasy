@@ -25,7 +25,7 @@ import Animated, {
   FadeIn,
   ZoomIn,
 } from 'react-native-reanimated';
-import { post } from '../../../services/api';
+import { post, get } from '../../../services/api';
 import { useToast } from '../../../components/Toast';
 import { useThemeColors } from '../../../hooks/useThemeColors';
 import { useHaptics } from '../../../hooks/useHaptics';
@@ -115,34 +115,60 @@ export default function QRScannerScreen() {
         ticketId = parsed.ticketId || data;
       } catch (e) {}
 
-      const response = await post('/bookings/checkout', { ticket_id: ticketId });
-      const ticketData = response.data?.data;
+      // Step 1: Verification Flow (Smart Check)
+      // This tells us if the vehicle is arriving (Reserved) or leaving (Active)
+      const verifyRes = await get(`/provider/verify-ticket/${ticketId}`);
+      const { ticket, recommended_action } = verifyRes.data.data;
 
-      if (ticketData?.payment_status === 'PENDING') {
-        haptics.notificationError();
-        setResult({
-          status: 'warning',
-          message: `Caution: Payment is still pending for this session.`
-        });
-      } else {
+      if (recommended_action === 'ENTRY') {
+        // Step 2a: Entry Flow
+        const entryRes = await post(`/provider/bookings/${ticketId}/mark-entry`);
         haptics.notificationSuccess();
         setResult({
           status: 'success',
-          message: `Verified: Space ${ticketData?.slot?.slot_number || 'N/A'} is cleared for exit.`,
-          data: ticketData
+          message: `Entry Confirmed: Space ${ticket.slot?.slot_number || 'N/A'} is now occupied by ${ticket.vehicle_number}.`,
+          data: entryRes.data.data
+        });
+      } else if (recommended_action === 'EXIT') {
+        // Step 2b: Exit Flow
+        const exitRes = await post('/bookings/checkout', { ticket_id: ticketId });
+        const ticketData = exitRes.data?.data;
+
+        if (ticketData?.payment_status === 'PENDING') {
+          haptics.notificationWarning();
+          setResult({
+            status: 'warning',
+            message: `Checkout Warning: Payment is still pending for ${ticket.vehicle_number}. Fee: ₹${ticketData.total_fee}.`
+          });
+        } else {
+          haptics.notificationSuccess();
+          setResult({
+            status: 'success',
+            message: `Exit Confirmed: Space ${ticket.slot?.slot_number || 'N/A'} is cleared. Total Fee: ₹${ticketData.total_fee}.`,
+            data: ticketData
+          });
+        }
+      } else {
+        // Invalid Status (e.g. Completed)
+        haptics.notificationError();
+        setResult({
+          status: 'error',
+          message: `Invalid State: This ticket is already ${ticket.status}.`
         });
       }
     } catch (error: any) {
+      console.error('Scan error:', error);
       haptics.notificationError();
+      const serverMsg = error.response?.data?.message;
       setResult({
         status: 'error',
-        message: error.response?.data?.message || 'Verification Error: Invalid or expired ticket.'
+        message: serverMsg || 'Verification Error: Invalid or unrecognized ticket.'
       });
     } finally {
       setLoading(false);
       resetTimer.current = setTimeout(() => {
         handleReset();
-      }, 15000);
+      }, 30000); // 30s timeout to auto-reset
     }
   };
 

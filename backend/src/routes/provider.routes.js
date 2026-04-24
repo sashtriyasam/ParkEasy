@@ -49,6 +49,7 @@ router.post('/bookings/:ticketId/mark-entry', providerController.markEntry);
 
 // Vehicle Checker
 router.get('/check-vehicle', providerController.checkVehicleByPlate);
+router.get('/verify-ticket/:ticketId', providerController.verifyTicket);
 
 module.exports = router;
 

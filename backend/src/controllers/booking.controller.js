@@ -39,14 +39,32 @@ const createBooking = asyncHandler(async (req, res, next) => {
 
 const endBooking = asyncHandler(async (req, res, next) => {
     const { ticket_id } = req.body;
+    const userId = req.user.id;
+
+    console.log(`[Checkout] Request received for Ticket: ${ticket_id}, User: ${userId} (${req.user.role})`);
 
     const ticket = await prisma.ticket.findUnique({
         where: { id: ticket_id },
         include: { slot: { include: { floor: { include: { facility: { include: { pricing_rules: true } } } } } } }
     });
 
-    if (!ticket || ticket.status !== 'ACTIVE') {
-        return next(new AppError('Active ticket not found', 404));
+    if (!ticket) {
+        console.warn(`[Checkout] Ticket Not Found: ${ticket_id}`);
+        return next(new AppError('No ticket found with this ID', 404));
+    }
+
+    console.log(`[Checkout] Ticket Found. Status: ${ticket.status}, Vehicle: ${ticket.vehicle_number}`);
+
+    if (ticket.status === 'COMPLETED') {
+        return next(new AppError('This ticket has already been checked out and completed.', 400));
+    }
+
+    if (ticket.status !== 'ACTIVE') {
+        console.warn(`[Checkout] Attempted checkout on non-active ticket: ${ticket_id} (Status: ${ticket.status})`);
+        const message = ticket.status === 'RESERVED' || ticket.status === 'PENDING_PAYMENT' 
+            ? 'This ticket is not yet active. Please mark vehicle entry first.' 
+            : `Ticket cannot be checked out (Status: ${ticket.status})`;
+        return next(new AppError(message, 400));
     }
 
     // Check ownership
@@ -56,6 +74,7 @@ const endBooking = asyncHandler(async (req, res, next) => {
         }
     } else if (req.user.role === 'PROVIDER') {
         if (ticket.slot.floor.facility.provider_id !== req.user.id) {
+            console.warn(`[Checkout] Provider ${req.user.id} unauthorized for facility ${ticket.slot.floor.facility.id}`);
             return next(new AppError('You do not have permission to manage this facility', 403));
         }
     } else {

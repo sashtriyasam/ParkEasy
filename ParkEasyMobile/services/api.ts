@@ -21,6 +21,11 @@ apiClient.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    if (__DEV__) {
+      console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url}`, config.data || '');
+    }
+    
     return config;
   },
   (error) => Promise.reject(error)
@@ -28,6 +33,10 @@ apiClient.interceptors.request.use(
 
 apiClient.interceptors.response.use(
   (response) => {
+    if (__DEV__) {
+      console.log(`[API Response] ${response.status} ${response.config.url}`);
+    }
+    
     // Railway sometimes returns a 200 with an "Application not found" HTML/Text body if misconfigured
     if (typeof response.data === 'string' && response.data.includes('Application not found')) {
       const error = new Error(`Infrastructure Error: Railway 404 at ${response.config.url}`);
@@ -37,6 +46,10 @@ apiClient.interceptors.response.use(
     return response;
   },
   async (error) => {
+    if (__DEV__) {
+      console.warn(`[API Error] ${error.response?.status || 'Network'} ${error.config?.url}`, error.response?.data || error.message);
+    }
+    
     const originalRequest = error.config;
     
     // Log infrastructure errors specifically

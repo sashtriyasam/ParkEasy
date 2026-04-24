@@ -747,7 +747,7 @@ const checkVehicleByPlate = asyncHandler(async (req, res, next) => {
     const findQuery = {
         where: {
             id: ticket_id || undefined,
-            vehicle_number: !ticket_id && normalizedPlate ? { contains: normalizedPlate, mode: 'insensitive' } : undefined,
+            vehicle_number: !ticket_id && normalizedPlate ? { equals: normalizedPlate, mode: 'insensitive' } : undefined,
             facility_id: { in: facilityIds },
             status: { in: ['ACTIVE', 'PENDING_PAYMENT', 'RESERVED'] }
         },
@@ -1047,19 +1047,37 @@ const markEntry = asyncHandler(async (req, res, next) => {
     const { ticketId } = req.params;
     const providerId = req.user.id;
 
+    console.log(`[Entry] Mark Entry requested for Ticket: ${ticketId} by Provider: ${providerId}`);
+
     const ticket = await prisma.ticket.findUnique({
         where: { id: ticketId },
         include: { slot: { include: { floor: { include: { facility: true } } } } }
     });
 
-    if (!ticket) return next(new AppError('Ticket not found', 404));
-    if (ticket.slot.floor.facility.provider_id !== providerId) {
-        return next(new AppError('Unauthorized', 403));
-    }
-    if (ticket.status !== 'PENDING_PAYMENT' && ticket.status !== 'RESERVED') {
-        return next(new AppError('Ticket is not in a state to mark entry', 400));
+    if (!ticket) {
+        console.warn(`[Entry] Ticket Not Found: ${ticketId}`);
+        return next(new AppError('Ticket not found', 404));
     }
 
+    if (ticket.slot.floor.facility.provider_id !== providerId) {
+        console.warn(`[Entry] Unauthorized attempt by Provider ${providerId} for Ticket ${ticketId}`);
+        return next(new AppError('Unauthorized: This ticket does not belong to your facility', 403));
+    }
+
+    if (ticket.status === 'ACTIVE') {
+        return res.status(200).json({
+            status: 'success',
+            message: 'Vehicle already marked as entered',
+            data: ticket
+        });
+    }
+
+    if (ticket.status !== 'PENDING_PAYMENT' && ticket.status !== 'RESERVED') {
+        console.warn(`[Entry] Invalid status for entry: ${ticket.status} (Ticket: ${ticketId})`);
+        return next(new AppError(`Ticket is in ${ticket.status} state. Cannot mark entry.`, 400));
+    }
+
+    // Confirm the booking (activates it)
     const updatedTicket = await bookingService.confirmBooking(
         ticket.slot_id,
         ticket.customer_id,
@@ -1067,10 +1085,51 @@ const markEntry = asyncHandler(async (req, res, next) => {
         ticket.vehicle_type
     );
 
+    console.log(`[Entry] Entry Confirmed for Ticket: ${ticketId}, Vehicle: ${ticket.vehicle_number}`);
+
     res.status(200).json({
         status: 'success',
-        message: 'Entry marked successfully',
+        message: 'Entry marked successfully. Vehicle is now ACTIVE.',
         data: updatedTicket
+    });
+});
+
+const verifyTicket = asyncHandler(async (req, res, next) => {
+    const { ticketId } = req.params;
+    const providerId = req.user.id;
+
+    console.log(`[Verify] Verification requested for Ticket: ${ticketId}`);
+
+    const ticket = await prisma.ticket.findUnique({
+        where: { id: ticketId },
+        include: { 
+            slot: { include: { floor: true } },
+            facility: true,
+            customer: true
+        }
+    });
+
+    if (!ticket) {
+        return next(new AppError('Ticket not found', 404));
+    }
+
+    // Verify facility ownership
+    const facility = await prisma.parkingFacility.findUnique({
+        where: { id: ticket.facility_id },
+        select: { provider_id: true }
+    });
+
+    if (!facility || facility.provider_id !== providerId) {
+        return next(new AppError('You do not have permission to manage this facility', 403));
+    }
+
+    res.status(200).json({
+        status: 'success',
+        data: {
+            ticket,
+            recommended_action: (ticket.status === 'RESERVED' || ticket.status === 'PENDING_PAYMENT') ? 'ENTRY' : 
+                               (ticket.status === 'ACTIVE') ? 'EXIT' : 'NONE'
+        }
     });
 });
 
