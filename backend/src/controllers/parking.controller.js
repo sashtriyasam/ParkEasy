@@ -43,7 +43,13 @@ const createFacility = asyncHandler(async (req, res, next) => {
             operating_hours,
             description,
             is_active: is_active !== undefined ? is_active : true,
-            image_url
+            image_url,
+            pricing_rules: {
+                create: [
+                    { vehicle_type: 'car', hourly_rate: 50, daily_max: 500 },
+                    { vehicle_type: 'bike', hourly_rate: 20, daily_max: 200 }
+                ]
+            }
         },
     });
 
