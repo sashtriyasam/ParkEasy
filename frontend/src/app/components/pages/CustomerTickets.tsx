@@ -65,6 +65,7 @@ export function CustomerTickets() {
   const [isLoading, setIsLoading] = useState(true);
   const [ticketToCancel, setTicketToCancel] = useState<string | null>(null);
   const [viewingTicket, setViewingTicket] = useState<Ticket | null>(null);
+  const [isScanningMode, setIsScanningMode] = useState<Ticket | null>(null);
 
   useEffect(() => {
     loadTickets();
@@ -211,37 +212,39 @@ export function CustomerTickets() {
 
                 return (
                   <Card key={ticket.id} className="group overflow-hidden rounded-[32px] border-0 shadow-xl shadow-black/[0.03] hover:shadow-2xl hover:shadow-black/10 transition-all duration-500 bg-white">
-                    <div className="p-8">
-                      <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 mb-8">
+                    <div className="p-5 sm:p-8">
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
                         <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-4">
-                            <Badge className="bg-emerald-500/10 text-emerald-600 border-0 font-black px-3 py-1 text-[10px] tracking-widest uppercase">ACTIVE NOW</Badge>
-                            <div className="flex items-center text-emerald-600 text-[10px] font-black">
-                              <span className="relative flex h-2 w-2 mr-2">
+                          <div className="flex items-center gap-3 mb-3">
+                            <Badge className="bg-emerald-500/10 text-emerald-600 border-0 font-black px-2 py-0.5 text-[9px] tracking-widest uppercase">ACTIVE NOW</Badge>
+                            <div className="flex items-center text-emerald-600 text-[9px] font-black">
+                              <span className="relative flex h-1.5 w-1.5 mr-1.5">
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
                               </span>
                               LIVE
                             </div>
                           </div>
-                          <h3 className="text-2xl font-black text-gray-900 mb-2">{facility.name}</h3>
+                          <h3 className="text-xl sm:text-2xl font-black text-gray-900 mb-1 leading-tight">{facility.name}</h3>
                           <div className="flex items-center text-gray-500">
-                            <MapPin className="w-4 h-4 mr-2 text-primary" />
-                            <span className="text-sm font-medium">{facility.address}</span>
+                            <MapPin className="w-3.5 h-3.5 mr-1.5 text-primary shrink-0" />
+                            <span className="text-xs font-medium truncate max-w-[200px] sm:max-w-none">{facility.address}</span>
                           </div>
                         </div>
                         
-                        <div className="bg-gray-50 rounded-3xl p-6 min-w-[180px] flex flex-col items-end justify-center border border-black/[0.03]">
-                           <div className="flex items-baseline gap-1 mb-1">
-                            <span className="text-sm font-bold text-gray-400">₹</span>
-                            <span className="text-4xl font-black text-primary tracking-tighter">
-                              {ticket.current_fee || ticket.total_fee || ticket.amount}
-                            </span>
+                        <div className="bg-gray-50 rounded-2xl p-4 sm:p-6 min-w-full sm:min-w-[180px] flex sm:flex-col items-center sm:items-end justify-between sm:justify-center border border-black/[0.03]">
+                          <div className="flex flex-col sm:items-end">
+                            <div className="flex items-baseline gap-1 mb-0.5">
+                              <span className="text-xs font-bold text-gray-400">₹</span>
+                              <span className="text-2xl sm:text-4xl font-black text-primary tracking-tighter">
+                                {ticket.current_fee || ticket.total_fee || ticket.amount}
+                              </span>
+                            </div>
+                            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Est. Fee</p>
                           </div>
-                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Total Estimate</p>
-                          <div className="flex items-center gap-2 bg-emerald-100/50 text-emerald-700 px-3 py-1.5 rounded-xl border border-emerald-200">
-                            <Clock className="w-3.5 h-3.5" />
-                            <p className="text-xs font-black">
+                          <div className="flex items-center gap-2 bg-emerald-100/50 text-emerald-700 px-3 py-1.5 rounded-xl border border-emerald-200 mt-0 sm:mt-3">
+                            <Clock className="w-3 h-3" />
+                            <p className="text-[10px] sm:text-xs font-black">
                               <LiveTimer entryTime={ticket.entry_time} />
                             </p>
                           </div>
@@ -250,83 +253,86 @@ export function CustomerTickets() {
 
                     {/* Time Window Display */}
                     {ticket.exit_time && (
-                      <div className="flex items-center gap-2 mb-4 bg-indigo-50 rounded-xl px-4 py-3">
-                        <Clock className="w-4 h-4 text-indigo-600 shrink-0" />
-                        <span className="text-sm font-bold text-indigo-700">
+                      <div className="flex items-center gap-2 mb-6 bg-indigo-50 rounded-xl px-4 py-3">
+                        <Clock className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                        <span className="text-xs sm:text-sm font-bold text-indigo-700">
                           {format(new Date(ticket.entry_time), 'hh:mm a')}
                           {' → '}
                           {format(new Date(ticket.exit_time), 'hh:mm a')}
                         </span>
-                        <span className="text-xs text-indigo-500 ml-auto">
+                        <span className="text-[10px] text-indigo-500 ml-auto">
                           {format(new Date(ticket.entry_time), 'MMM dd')}
                         </span>
                       </div>
                     )}
 
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6 bg-gray-50/50 p-4 rounded-2xl border border-gray-100/50">
                       <div>
-                        <p className="text-xs text-gray-500 mb-1">Vehicle</p>
-                        <p className="font-semibold">{ticket.vehicle_number}</p>
+                        <p className="text-[10px] text-gray-400 uppercase font-black tracking-wider mb-0.5">Vehicle</p>
+                        <p className="font-bold text-sm text-gray-700">{ticket.vehicle_number}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500 mb-1">Start Time</p>
-                        <p className="font-semibold">{format(new Date(ticket.entry_time), 'MMM dd, HH:mm')}</p>
+                        <p className="text-[10px] text-gray-400 uppercase font-black tracking-wider mb-0.5">Start</p>
+                        <p className="font-bold text-sm text-gray-700">{format(new Date(ticket.entry_time), 'HH:mm')}</p>
+                      </div>
+                      <div className="hidden sm:block">
+                        <p className="text-[10px] text-gray-400 uppercase font-black tracking-wider mb-0.5">Booking ID</p>
+                        <p className="font-bold text-sm text-gray-700">{ticket.id.substring(0, 8)}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500 mb-1">Booking ID</p>
-                        <p className="font-semibold text-sm">{ticket.id.substring(0, 8)}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500 mb-1">Slot</p>
-                        <p className="font-semibold">{ticket.slot?.slot_number || ticket.slot?.slotNumber || 'Assigned'}</p>
+                        <p className="text-[10px] text-gray-400 uppercase font-black tracking-wider mb-0.5">Slot</p>
+                        <p className="font-bold text-sm text-gray-700">{ticket.slot?.slot_number || ticket.slot?.slotNumber || '---'}</p>
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between border-t pt-4">
-                      <div className="flex items-center space-x-2">
-                        <div className="bg-white p-2 rounded-lg border">
+                    <div className="flex flex-col sm:flex-row items-center justify-between border-t border-dashed pt-5 gap-6">
+                      <div 
+                        className="flex items-center space-x-4 bg-white p-3 rounded-2xl border-2 border-primary/10 shadow-sm cursor-pointer hover:bg-primary/[0.02] transition-colors group/qr"
+                        onClick={() => setIsScanningMode(ticket)}
+                      >
+                        <div className="bg-white p-1 rounded-lg">
                           {ticket.qr_code?.startsWith('data:image') ? (
                             <img 
                               src={ticket.qr_code} 
                               alt="Booking QR Code" 
-                              className="w-16 h-16 object-contain"
+                              className="w-12 h-12 object-contain group-hover/qr:scale-110 transition-transform"
                             />
                           ) : (
-                            <QRCode value={ticket.qr_code || ticket.id} size={64} />
+                            <QRCode value={ticket.qr_code || ticket.id} size={48} />
                           )}
                         </div>
-                        <p className="text-[10px] text-gray-500 max-w-[80px]">Scan QR at entry gate</p>
+                        <div>
+                          <p className="text-xs font-black text-gray-900">Scan at Gate</p>
+                          <p className="text-[10px] text-primary font-bold">Tap to Enlarge</p>
+                        </div>
                       </div>
                       
-                      <div className="flex gap-2">
-                        {/* Navigate Button */}
+                      <div className="flex flex-wrap justify-center sm:justify-end gap-2 w-full sm:w-auto">
                         <Button 
                           variant="outline" 
                           size="sm" 
-                          className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                          className="h-10 px-4 rounded-xl border-blue-100 text-blue-600 hover:bg-blue-50 font-bold text-xs"
                           onClick={() => navigateToFacility(ticket)}
                         >
-                          <Navigation className="w-4 h-4 mr-1" />
-                          Navigate
+                          <Navigation className="w-3.5 h-3.5 mr-1.5" />
+                          Directions
                         </Button>
                         <Button 
                           variant="outline" 
                           size="sm" 
-                          className="border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                          className="h-10 px-4 rounded-xl border-indigo-100 text-indigo-600 hover:bg-indigo-50 font-bold text-xs"
                           onClick={() => handleDownload(ticket.id)}
                         >
-                          Download Invoice
+                          Invoice
                         </Button>
                         <Button 
                           variant="outline" 
                           size="sm" 
-                          className="border-red-200 text-red-600 hover:bg-red-50"
-                          onClick={() => {
-                            setTicketToCancel(ticket.id);
-                          }}
+                          className="h-10 px-4 rounded-xl border-red-100 text-red-500 hover:bg-red-50 font-bold text-xs"
+                          onClick={() => setTicketToCancel(ticket.id)}
                           disabled={isLoading}
                         >
-                          Cancel Booking
+                          Cancel
                         </Button>
                       </div>
                     </div>
@@ -469,6 +475,59 @@ export function CustomerTickets() {
                 </div>
               );
             })()}
+          </DialogContent>
+        </Dialog>
+        {/* Scanning Mode / Large QR Modal */}
+        <Dialog open={!!isScanningMode} onOpenChange={(open) => !open && setIsScanningMode(null)}>
+          <DialogContent className="sm:max-w-[400px] p-0 overflow-hidden border-none rounded-[40px] shadow-3xl bg-white">
+            {isScanningMode && (
+              <div className="flex flex-col items-center">
+                <div className="w-full bg-primary p-8 text-center text-white">
+                  <div className="mx-auto w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center mb-4 backdrop-blur-md">
+                    <ParkingSquare className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-xl font-black mb-1">Gate Pass</h3>
+                  <p className="text-white/70 text-xs font-bold uppercase tracking-widest">Entrance & Exit</p>
+                </div>
+                
+                <div className="p-10 flex flex-col items-center">
+                  <div className="p-6 bg-white rounded-[40px] shadow-2xl border-4 border-gray-50 mb-8 transform hover:scale-105 transition-transform duration-500">
+                    {isScanningMode.qr_code?.startsWith('data:image') ? (
+                      <img 
+                        src={isScanningMode.qr_code} 
+                        alt="Gate Pass QR" 
+                        className="w-48 h-48 object-contain"
+                      />
+                    ) : (
+                      <QRCode value={isScanningMode.qr_code || isScanningMode.id} size={200} />
+                    )}
+                  </div>
+                  
+                  <div className="text-center space-y-1 mb-8">
+                    <p className="text-lg font-black text-gray-900">{isScanningMode.vehicle_number}</p>
+                    <p className="text-xs text-gray-500 font-medium">Slot: {isScanningMode.slot?.slot_number || 'Assigned'}</p>
+                  </div>
+                  
+                  <div className="w-full bg-gray-50 rounded-2xl p-4 flex items-center gap-4 border border-gray-100">
+                    <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                      <Shield className="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <p className="text-[10px] text-gray-500 leading-relaxed font-medium">
+                      Point this QR code at the scanner at the parking entrance or exit to automatically operate the gate.
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="w-full p-6 bg-gray-50/50 border-t border-gray-100">
+                  <Button 
+                    className="w-full h-14 rounded-2xl bg-gray-900 hover:bg-black text-white font-black"
+                    onClick={() => setIsScanningMode(null)}
+                  >
+                    Done Scanning
+                  </Button>
+                </div>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
 
