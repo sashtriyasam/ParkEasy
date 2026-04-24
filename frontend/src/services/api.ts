@@ -9,7 +9,7 @@ const apiClient: AxiosInstance = axios.create({
     headers: {
         'Content-Type': 'application/json',
     },
-    timeout: 10000,
+    timeout: 30000, // 30s default; booking flow (payment + QR + DB tx) needs headroom on cold starts
 });
 
 const isAuthPage = () => {

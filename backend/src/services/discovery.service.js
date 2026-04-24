@@ -199,17 +199,30 @@ const getAvailableSlots = async (facilityId, filters = {}) => {
     if (floor_id) where.floor_id = floor_id;
     if (vehicle_type) where.vehicle_type = vehicle_type;
 
-    const slots = await prisma.parkingSlot.findMany({
-        where,
-        include: {
-            floor: {
-                select: { floor_number: true, floor_name: true }
-            }
-        },
-        orderBy: [
-            { floor_id: 'asc' },
-            { slot_number: 'asc' }
-        ]
+    // Fetch slots and facility pricing rules in parallel
+    const [slots, facility] = await Promise.all([
+        prisma.parkingSlot.findMany({
+            where,
+            include: {
+                floor: {
+                    select: { floor_number: true, floor_name: true }
+                }
+            },
+            orderBy: [
+                { floor_id: 'asc' },
+                { slot_number: 'asc' }
+            ]
+        }),
+        prisma.parkingFacility.findUnique({
+            where: { id: facilityId },
+            select: { pricing_rules: true }
+        })
+    ]);
+
+    // Build a quick lookup: vehicle_type -> hourly_rate
+    const pricingMap = {};
+    (facility?.pricing_rules || []).forEach(rule => {
+        pricingMap[rule.vehicle_type] = rule.hourly_rate;
     });
 
     // Group by floor
@@ -222,12 +235,15 @@ const getAvailableSlots = async (facilityId, filters = {}) => {
             slot_number: slot.slot_number,
             vehicle_type: slot.vehicle_type,
             status: slot.status,
-            area_sqft: slot.area_sqft
+            area_sqft: slot.area_sqft,
+            // Inject price_per_hour from facility pricing rules
+            price_per_hour: pricingMap[slot.vehicle_type] ?? null
         });
     });
 
     return slotsByFloor;
 };
+
 
 module.exports = {
     searchNearbyFacilities,

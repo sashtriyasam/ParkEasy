@@ -134,7 +134,7 @@ const getAmenityFeatures = (amenities?: string[]) => {
 export function CustomerSearch() {
   const navigate = useNavigate();
   const { facilities, switchRole, user } = useApp();
-  const { coordinates: userLocation, loading: geoLoading } = useGeolocation();
+  const { coordinates: userLocation, loading: geoLoading, permissionDenied: geoDenied } = useGeolocation();
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
 
   const [selectedFacility, setSelectedFacility] = useState<Facility | null>(null);
@@ -268,6 +268,19 @@ export function CustomerSearch() {
             ))}
           </div>
         </div>
+
+        {/* Geolocation blocked banner */}
+        {geoDenied && (
+          <div className="mx-4 mt-3 px-4 py-3 rounded-2xl bg-amber-50 border border-amber-200 flex items-start gap-3">
+            <Info className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-xs font-bold text-amber-800">Location blocked</p>
+              <p className="text-[11px] text-amber-600 mt-0.5">
+                Click the tune icon (⊕) next to the URL bar → Site Settings → Location → Allow, then refresh.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Sidebar Results List */}
         <div className="flex-1 overflow-y-auto no-scrollbar p-4 space-y-4 bg-gray-50/30">
