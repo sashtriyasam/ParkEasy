@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
@@ -32,7 +33,20 @@ const { version } = require('../package.json');
 const app = express();
 
 // Middleware
-app.use(helmet());
+// Phase 10 Fix: Relaxed CSP for Fullstack Consolidation (Google Maps + Self-hosting)
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "https://maps.googleapis.com"],
+            connectSrc: ["'self'", "https://maps.googleapis.com"],
+            imgSrc: ["'self'", "data:", "https://maps.gstatic.com", "https://*.googleapis.com"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+            fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        },
+    },
+    crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 const allowedOrigins = [
     'http://localhost:5173',
     'http://localhost:3000',
@@ -116,6 +130,26 @@ app.use('/api', apiRoutes);
 
 // Global version info
 app.get('/api/version', (req, res) => res.status(200).json({ status: 'success', version, environment: process.env.NODE_ENV }));
+
+// --- FULLSTACK CONSOLIDATION ---
+// Serve static files from the 'public' directory (built frontend)
+app.use(express.static(path.join(__dirname, '../public')));
+
+// SPA Fallback: Serve index.html for any route that doesn't match an API route
+// This fixes the "Not Found" error on refresh for client-side routing
+app.get('*', (req, res, next) => {
+    // If it's an API request or file request that reached here, let it pass to 404 handler
+    if (req.originalUrl.startsWith('/api') || req.originalUrl.includes('.')) {
+        return next();
+    }
+    // Otherwise, serve the frontend index.html
+    res.sendFile(path.join(__dirname, '../public/index.html'), (err) => {
+        if (err) {
+            // If index.html is missing, fall back to the 404 handler
+            next();
+        }
+    });
+});
 
 // 404 Handler
 app.use((req, res, next) => {

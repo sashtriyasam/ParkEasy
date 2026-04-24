@@ -126,7 +126,10 @@ const endBooking = asyncHandler(async (req, res, next) => {
 
 const getMyBookings = asyncHandler(async (req, res) => {
     const bookings = await prisma.ticket.findMany({
-        where: { customer_id: req.user.id },
+        where: { 
+            customer_id: req.user.id,
+            status: { not: 'PENDING_PAYMENT' } // Phase 9 Fix: Exclude ghost bookings from history
+        },
         orderBy: { entry_time: 'desc' },
         include: { slot: { include: { floor: { include: { facility: true } } } } }
     });

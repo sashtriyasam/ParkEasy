@@ -4,9 +4,9 @@ services:
     name: parkeasy-backend
     env: node
     plan: free
-    rootDir: backend
-    buildCommand: "npm install && npx prisma generate"
-    startCommand: "node index.js"
+    rootDir: .
+    buildCommand: "cd backend && npm install && npx prisma generate && cd ../frontend && npm install && VITE_API_URL=/api/v1 npm run build && cd ../backend && mkdir -p public && cp -r ../frontend/dist/* ./public/"
+    startCommand: "cd backend && node index.js"
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV

@@ -6,6 +6,17 @@ const { emitSlotUpdate, emitToProvider } = require('./socket.service');
  * Check if a slot is available for a specific time window
  */
 const isSlotAvailable = async (slotId, startTime, endTime, client = prisma) => {
+    // 0. Cleanup expired PENDING_PAYMENT tickets for this slot
+    // This prevents "ghost" bookings from blocking availability indefinitely
+    await client.ticket.updateMany({
+        where: {
+            slot_id: slotId,
+            status: 'PENDING_PAYMENT',
+            created_at: { lt: new Date(Date.now() - 15 * 60 * 1000) } // 10 min window + 5 min grace
+        },
+        data: { status: 'CANCELLED' }
+    });
+
     // 1. Check for overlapping tickets
     // Standard overlap: (entry_time < endTime) AND (exit_time > startTime OR exit_time IS NULL)
     const overlappingTicket = await client.ticket.findFirst({
@@ -140,8 +151,15 @@ const confirmBooking = async (slotId, userId, vehicleNumber, vehicleType, tx = n
         }
 
         if (slot.status === 'RESERVED') {
-            if (slot.reservation_expiry && new Date() > slot.reservation_expiry) {
-                throw new AppError('Reservation expired', 400);
+            // Phase 9 Fix: Add a 5-minute grace period to the reservation window
+            // to account for network delays during payment verification.
+            const gracePeriod = 5 * 60 * 1000;
+            const effectiveExpiry = slot.reservation_expiry 
+                ? new Date(slot.reservation_expiry.getTime() + gracePeriod) 
+                : null;
+
+            if (effectiveExpiry && new Date() > effectiveExpiry) {
+                throw new AppError('Reservation expired. Please try booking again.', 400);
             }
 
             // Ownership check: Find the pending ticket that reserved this slot
