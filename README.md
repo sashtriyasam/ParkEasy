@@ -1018,7 +1018,6 @@ JavaScript-only changes (bug fixes, UI tweaks) are deployable as OTA bundles wit
 **Primary Author**
 - Shivam Shelatkar
 - Computer Engineering, SE Semester IV
-- Watumull Institute of Electronics Engineering & Computer Technology
 - University of Mumbai
 
 **Acknowledgements**
