@@ -47,7 +47,7 @@ export function ProviderQRScanner() {
                         { facingMode: "environment" }, 
                         config,
                         (decodedText) => {
-                            console.log("QR Decoded:", decodedText);
+                            console.log("QR Raw Data:", decodedText);
                             if (html5QrCode) {
                                 html5QrCode.stop().catch(err => console.error("Stop failed", err));
                             }
@@ -76,19 +76,31 @@ export function ProviderQRScanner() {
         const tid = (id || ticketId).trim();
         if (!tid) return;
 
-        console.log("Verifying ID:", tid);
         setIsLoading(true);
         try {
-            // The backend endpoint /api/v1/provider/check-vehicle expects vehicle_number
-            // If the QR contains a full ID or a plate, we send it to vehicle_number
-            const response = await apiClient.get(`/provider/check-vehicle?vehicle_number=${tid}`);
-            console.log("Verification Response:", response.data);
+            let plateToVerify = tid;
+            
+            // LOGIC: Check if the scanned text is a JSON string (our QR data format)
+            if (tid.startsWith('{') && tid.endsWith('}')) {
+                try {
+                    const parsed = JSON.parse(tid);
+                    console.log("Parsed QR JSON:", parsed);
+                    // Use vehicleNumber from QR if available, otherwise ticketId
+                    plateToVerify = parsed.vehicleNumber || parsed.ticketId || tid;
+                } catch (e) {
+                    console.warn("Failed to parse JSON, using raw text");
+                }
+            }
+
+            console.log("Final Verification Query:", plateToVerify);
+            
+            // Use the base apiClient (baseURL is /api/v1)
+            // Endpoint: /api/v1/provider/check-vehicle?vehicle_number=...
+            const response = await apiClient.get(`/provider/check-vehicle?vehicle_number=${encodeURIComponent(plateToVerify)}`);
+            console.log("Server Response:", response.data);
 
             const data = response.data.data;
-            
-            // Backend returns { activeTicket: {...} } or { found: false }
-            // Looking at actual controller: it returns 'activeTicket' (camelCase) usually or 'active_ticket'
-            const ticket = data.activeTicket || data.active_ticket || (data.found ? data : null);
+            const ticket = data.active_ticket || data.activeTicket || (data.found ? data : null);
 
             if (!ticket) {
                 toast.error('No active booking found');
@@ -112,7 +124,6 @@ export function ProviderQRScanner() {
         if (!scanResult) return;
         setIsLoading(true);
         try {
-            // End booking via checkout endpoint
             await apiClient.post('/bookings/checkout', { 
                 ticket_id: scanResult.id 
             });
@@ -234,7 +245,7 @@ export function ProviderQRScanner() {
                                     </div>
                                     <h3 className="text-3xl font-black tracking-tighter">Verified</h3>
                                     <p className="text-primary font-bold uppercase text-[10px] tracking-widest mt-2 px-3 py-1 bg-primary/10 rounded-full inline-block">
-                                        Ready for Action
+                                        Action Required
                                     </p>
                                 </div>
                                 
@@ -242,7 +253,7 @@ export function ProviderQRScanner() {
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="p-5 rounded-[2rem] bg-slate-50 dark:bg-slate-800/50 border border-border">
                                             <p className="text-[10px] font-black text-muted-foreground uppercase mb-2">Plate</p>
-                                            <p className="text-xl font-black tracking-tight">{scanResult?.vehicle_number || 'N/A'}</p>
+                                            <p className="text-xl font-black tracking-tight">{scanResult?.vehicle_number || scanResult?.vehicleNumber || 'N/A'}</p>
                                         </div>
                                         <div className="p-5 rounded-[2rem] bg-primary/5 border border-primary/10">
                                             <p className="text-[10px] font-black text-primary/60 uppercase mb-2">Slot</p>
@@ -257,7 +268,7 @@ export function ProviderQRScanner() {
                                             </div>
                                             <div>
                                                 <p className="text-[10px] font-black text-muted-foreground uppercase">Vehicle Type</p>
-                                                <p className="text-sm font-bold">{scanResult?.vehicle_type || 'CAR'}</p>
+                                                <p className="text-sm font-bold">{scanResult?.vehicle_type || scanResult?.vehicleType || 'CAR'}</p>
                                             </div>
                                         </div>
                                     </div>
