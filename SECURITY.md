@@ -12,7 +12,7 @@
 **Please do NOT open a public GitHub issue for security vulnerabilities.**
 
 If you discover a security vulnerability in ParkEasy, please report it 
-responsibly by emailing: **[your-email@example.com]**
+responsibly by emailing: **[shelatkarshivam4@gmail.com]**
 
 Please include the following in your report:
 - A description of the vulnerability
