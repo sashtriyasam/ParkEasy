@@ -723,7 +723,7 @@ const checkVehicleByPlate = asyncHandler(async (req, res, next) => {
         return next(new AppError('Vehicle number or Ticket ID is required', 400));
     }
 
-    // Get all facilities for this provider to ensure they own the booking
+    // Get all facilities for this provider
     const facilities = await prisma.parkingFacility.findMany({
         where: { provider_id: providerId },
         select: { id: true, name: true }
@@ -733,42 +733,28 @@ const checkVehicleByPlate = asyncHandler(async (req, res, next) => {
     if (facilityIds.length === 0) {
         return res.status(200).json({
             status: 'success',
-            data: { found: false, message: 'No facilities found for this provider' }
+            data: { found: false, message: 'No facilities found' }
         });
     }
 
     let activeTicket = null;
 
-    // 1. If Ticket ID is provided (e.g., from QR scan), prioritize exact lookup
-    if (ticket_id) {
-        activeTicket = await prisma.ticket.findFirst({
-            where: {
-                id: ticket_id,
-                facility_id: { in: facilityIds },
-                status: 'ACTIVE'
-            },
-            include: {
-                slot: { include: { floor: true } },
-                facility: { select: { name: true, pricing_rules: true } }
-            }
-        });
-    }
+    // 1. Precise Lookup (Status PENDING_PAYMENT or ACTIVE)
+    const findQuery = {
+        where: {
+            id: ticket_id || undefined,
+            vehicle_number: !ticket_id && vehicle_number ? { contains: vehicle_number.toUpperCase().replace(/\s/g, ''), mode: 'insensitive' } : undefined,
+            facility_id: { in: facilityIds },
+            status: { in: ['ACTIVE', 'PENDING_PAYMENT'] }
+        },
+        include: {
+            slot: { include: { floor: true } },
+            facility: { select: { id: true, name: true, pricing_rules: true } },
+            customer: { select: { full_name: true, phone_number: true, email: true } }
+        }
+    };
 
-    // 2. If no ticket found by ID and plate is provided, fallback to plate lookup
-    if (!activeTicket && vehicle_number) {
-        const normalizedPlate = vehicle_number.toUpperCase().replace(/\s/g, '');
-        activeTicket = await prisma.ticket.findFirst({
-            where: {
-                vehicle_number: { contains: normalizedPlate, mode: 'insensitive' },
-                facility_id: { in: facilityIds },
-                status: 'ACTIVE'
-            },
-            include: {
-                slot: { include: { floor: true } },
-                facility: { select: { name: true, pricing_rules: true } }
-            }
-        });
-    }
+    activeTicket = await prisma.ticket.findFirst(findQuery);
 
     let currentFee = 0;
     let durationMinutes = 0;
@@ -776,7 +762,7 @@ const checkVehicleByPlate = asyncHandler(async (req, res, next) => {
     if (activeTicket) {
         const now = new Date();
         const entryTime = new Date(activeTicket.entry_time);
-        durationMinutes = Math.round((now - entryTime) / (1000 * 60));
+        durationMinutes = Math.max(0, Math.round((now - entryTime) / (1000 * 60)));
 
         const pricingRule = activeTicket.facility.pricing_rules.find(
             r => r.vehicle_type === activeTicket.vehicle_type
@@ -784,26 +770,24 @@ const checkVehicleByPlate = asyncHandler(async (req, res, next) => {
 
         if (pricingRule) {
             const hours = Math.ceil(durationMinutes / 60);
-            currentFee = hours * pricingRule.hourly_rate;
-            if (pricingRule.daily_max && currentFee > pricingRule.daily_max) {
-                currentFee = pricingRule.daily_max;
+            currentFee = hours * Number(pricingRule.hourly_rate);
+            if (pricingRule.daily_max && currentFee > Number(pricingRule.daily_max)) {
+                currentFee = Number(pricingRule.daily_max);
             }
         }
     }
 
-    // For history, we'll still use the vehicle number if available
     const plateForHistory = vehicle_number || activeTicket?.vehicle_number;
     let history = [];
     if (plateForHistory) {
-        const normalizedPlate = plateForHistory.toUpperCase().replace(/\s/g, '');
         history = await prisma.ticket.findMany({
             where: {
-                vehicle_number: { contains: normalizedPlate, mode: 'insensitive' },
+                vehicle_number: { contains: plateForHistory.toUpperCase().replace(/\s/g, ''), mode: 'insensitive' },
                 facility_id: { in: facilityIds },
                 status: { in: ['COMPLETED', 'CANCELLED'] }
             },
             orderBy: { entry_time: 'desc' },
-            take: 10,
+            take: 5,
             include: {
                 facility: { select: { name: true } },
                 slot: { select: { slot_number: true } }
@@ -815,21 +799,23 @@ const checkVehicleByPlate = asyncHandler(async (req, res, next) => {
         status: 'success',
         data: {
             found: !!activeTicket,
-            vehicle_number: activeTicket?.vehicle_number || vehicle_number,
             active_ticket: activeTicket ? {
                 id: activeTicket.id,
-                slot: activeTicket.slot.slot_number,
-                floor: activeTicket.slot.floor.floor_name,
-                facility: activeTicket.facility.name,
+                status: activeTicket.status,
+                vehicle_number: activeTicket.vehicle_number,
                 vehicle_type: activeTicket.vehicle_type,
+                customer_name: activeTicket.customer_name || activeTicket.customer?.full_name || 'Guest',
+                customer_phone: activeTicket.customer_phone || activeTicket.customer?.phone_number || 'N/A',
+                slot: activeTicket.slot?.slot_number,
+                floor: activeTicket.slot?.floor?.floor_name,
+                facility_id: activeTicket.facility.id,
+                facility_name: activeTicket.facility.name,
                 entry_time: activeTicket.entry_time,
                 duration_minutes: durationMinutes,
                 current_fee: currentFee
             } : null,
             history: history.map(t => ({
                 id: t.id,
-                facility: t.facility.name,
-                slot: t.slot?.slot_number,
                 entry_time: t.entry_time,
                 exit_time: t.exit_time,
                 total_fee: t.total_fee,
@@ -1049,6 +1035,37 @@ const getWithdrawals = asyncHandler(async (req, res) => {
     });
 });
 
+const markEntry = asyncHandler(async (req, res, next) => {
+    const { ticketId } = req.params;
+    const providerId = req.user.id;
+
+    const ticket = await prisma.ticket.findUnique({
+        where: { id: ticketId },
+        include: { slot: { include: { floor: { include: { facility: true } } } } }
+    });
+
+    if (!ticket) return next(new AppError('Ticket not found', 404));
+    if (ticket.slot.floor.facility.provider_id !== providerId) {
+        return next(new AppError('Unauthorized', 403));
+    }
+    if (ticket.status !== 'PENDING_PAYMENT' && ticket.status !== 'RESERVED') {
+        return next(new AppError('Ticket is not in a state to mark entry', 400));
+    }
+
+    const updatedTicket = await bookingService.confirmBooking(
+        ticket.slot_id,
+        ticket.customer_id,
+        ticket.vehicle_number,
+        ticket.vehicle_type
+    );
+
+    res.status(200).json({
+        status: 'success',
+        message: 'Entry marked successfully',
+        data: updatedTicket
+    });
+});
+
 const createOfflineBooking = asyncHandler(async (req, res, next) => {
     // 1. Extract with fallback for both naming conventions
     const facilityId = req.body.facilityId || req.body.facility_id;
@@ -1162,5 +1179,6 @@ module.exports = {
     getEarnings,
     requestWithdrawal,
     getWithdrawals,
-    createOfflineBooking
+    createOfflineBooking,
+    markEntry
 };
