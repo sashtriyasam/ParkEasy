@@ -716,15 +716,14 @@ const updateFacilityPricing = asyncHandler(async (req, res, next) => {
 });
 
 const checkVehicleByPlate = asyncHandler(async (req, res, next) => {
-    const { vehicle_number } = req.query;
+    const { vehicle_number, ticket_id } = req.query;
     const providerId = req.user.id;
 
-    if (!vehicle_number) {
-        return next(new AppError('Vehicle number is required', 400));
+    if (!vehicle_number && !ticket_id) {
+        return next(new AppError('Vehicle number or Ticket ID is required', 400));
     }
 
-    const normalizedPlate = vehicle_number.toUpperCase().replace(/\s/g, '');
-
+    // Get all facilities for this provider to ensure they own the booking
     const facilities = await prisma.parkingFacility.findMany({
         where: { provider_id: providerId },
         select: { id: true, name: true }
@@ -738,17 +737,38 @@ const checkVehicleByPlate = asyncHandler(async (req, res, next) => {
         });
     }
 
-    const activeTicket = await prisma.ticket.findFirst({
-        where: {
-            vehicle_number: { contains: normalizedPlate, mode: 'insensitive' },
-            facility_id: { in: facilityIds },
-            status: 'ACTIVE'
-        },
-        include: {
-            slot: { include: { floor: true } },
-            facility: { select: { name: true, pricing_rules: true } }
-        }
-    });
+    let activeTicket = null;
+
+    // 1. If Ticket ID is provided (e.g., from QR scan), prioritize exact lookup
+    if (ticket_id) {
+        activeTicket = await prisma.ticket.findFirst({
+            where: {
+                id: ticket_id,
+                facility_id: { in: facilityIds },
+                status: 'ACTIVE'
+            },
+            include: {
+                slot: { include: { floor: true } },
+                facility: { select: { name: true, pricing_rules: true } }
+            }
+        });
+    }
+
+    // 2. If no ticket found by ID and plate is provided, fallback to plate lookup
+    if (!activeTicket && vehicle_number) {
+        const normalizedPlate = vehicle_number.toUpperCase().replace(/\s/g, '');
+        activeTicket = await prisma.ticket.findFirst({
+            where: {
+                vehicle_number: { contains: normalizedPlate, mode: 'insensitive' },
+                facility_id: { in: facilityIds },
+                status: 'ACTIVE'
+            },
+            include: {
+                slot: { include: { floor: true } },
+                facility: { select: { name: true, pricing_rules: true } }
+            }
+        });
+    }
 
     let currentFee = 0;
     let durationMinutes = 0;
@@ -771,25 +791,31 @@ const checkVehicleByPlate = asyncHandler(async (req, res, next) => {
         }
     }
 
-    const history = await prisma.ticket.findMany({
-        where: {
-            vehicle_number: { contains: normalizedPlate, mode: 'insensitive' },
-            facility_id: { in: facilityIds },
-            status: { in: ['COMPLETED', 'CANCELLED'] }
-        },
-        orderBy: { entry_time: 'desc' },
-        take: 10,
-        include: {
-            facility: { select: { name: true } },
-            slot: { select: { slot_number: true } }
-        }
-    });
+    // For history, we'll still use the vehicle number if available
+    const plateForHistory = vehicle_number || activeTicket?.vehicle_number;
+    let history = [];
+    if (plateForHistory) {
+        const normalizedPlate = plateForHistory.toUpperCase().replace(/\s/g, '');
+        history = await prisma.ticket.findMany({
+            where: {
+                vehicle_number: { contains: normalizedPlate, mode: 'insensitive' },
+                facility_id: { in: facilityIds },
+                status: { in: ['COMPLETED', 'CANCELLED'] }
+            },
+            orderBy: { entry_time: 'desc' },
+            take: 10,
+            include: {
+                facility: { select: { name: true } },
+                slot: { select: { slot_number: true } }
+            }
+        });
+    }
 
     res.status(200).json({
         status: 'success',
         data: {
             found: !!activeTicket,
-            vehicle_number: normalizedPlate,
+            vehicle_number: activeTicket?.vehicle_number || vehicle_number,
             active_ticket: activeTicket ? {
                 id: activeTicket.id,
                 slot: activeTicket.slot.slot_number,

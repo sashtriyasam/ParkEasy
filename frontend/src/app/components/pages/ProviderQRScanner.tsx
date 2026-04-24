@@ -21,7 +21,7 @@ import apiClient from '@/services/api';
 
 export function ProviderQRScanner() {
     const navigate = useNavigate();
-    const [ticketId, setTicketId] = useState('');
+    const [manualId, setManualId] = useState('');
     const [isScanning, setIsScanning] = useState(true);
     const [isLoading, setIsLoading] = useState(false);
     const [scanResult, setScanResult] = useState<any>(null);
@@ -72,31 +72,38 @@ export function ProviderQRScanner() {
         }
     }, [isScanning, scanResult]);
 
-    const handleVerify = async (id: string) => {
-        const tid = (id || ticketId).trim();
-        if (!tid) return;
+    const handleVerify = async (scannedData: string) => {
+        const rawData = (scannedData || manualId).trim();
+        if (!rawData) return;
 
         setIsLoading(true);
         try {
-            let plateToVerify = tid;
+            let params: any = {};
             
-            // LOGIC: Check if the scanned text is a JSON string (our QR data format)
-            if (tid.startsWith('{') && tid.endsWith('}')) {
+            // LOGIC: Check if the scanned text is a JSON string (our full QR data format)
+            if (rawData.startsWith('{') && rawData.endsWith('}')) {
                 try {
-                    const parsed = JSON.parse(tid);
+                    const parsed = JSON.parse(rawData);
                     console.log("Parsed QR JSON:", parsed);
-                    // Use vehicleNumber from QR if available, otherwise ticketId
-                    plateToVerify = parsed.vehicleNumber || parsed.ticketId || tid;
+                    // Use ticketId for precise verification
+                    if (parsed.ticketId) {
+                        params.ticket_id = parsed.ticketId;
+                    } else if (parsed.vehicleNumber) {
+                        params.vehicle_number = parsed.vehicleNumber;
+                    }
                 } catch (e) {
-                    console.warn("Failed to parse JSON, using raw text");
+                    console.warn("Failed to parse JSON, using raw text as plate");
+                    params.vehicle_number = rawData;
                 }
+            } else {
+                // If it's plain text, treat as plate number
+                params.vehicle_number = rawData;
             }
 
-            console.log("Final Verification Query:", plateToVerify);
+            console.log("Final Verification Params:", params);
             
-            // Use the base apiClient (baseURL is /api/v1)
-            // Endpoint: /api/v1/provider/check-vehicle?vehicle_number=...
-            const response = await apiClient.get(`/provider/check-vehicle?vehicle_number=${encodeURIComponent(plateToVerify)}`);
+            // Call the upgraded endpoint with either ticket_id or vehicle_number
+            const response = await apiClient.get('/provider/check-vehicle', { params });
             console.log("Server Response:", response.data);
 
             const data = response.data.data;
@@ -109,7 +116,7 @@ export function ProviderQRScanner() {
             }
 
             setScanResult(ticket);
-            toast.success('Verified Successfully');
+            toast.success('Ticket Verified');
             setIsScanning(false);
         } catch (error: any) {
             console.error("Verification error:", error.response?.data || error.message);
@@ -162,7 +169,7 @@ export function ProviderQRScanner() {
 
                 <div className="text-center mb-12">
                     <h1 className="text-4xl font-black text-foreground tracking-tighter mb-3">Gate Control</h1>
-                    <p className="text-muted-foreground font-medium max-w-xs mx-auto">Instant check-in and check-out via back-camera scanning</p>
+                    <p className="text-muted-foreground font-medium max-w-xs mx-auto">Precise Ticket ID & Plate Verification</p>
                 </div>
 
                 <AnimatePresence mode="wait">
@@ -212,19 +219,19 @@ export function ProviderQRScanner() {
                                 <CardContent className="p-6">
                                     <div className="flex items-center gap-2 mb-4 text-[10px] font-black text-muted-foreground uppercase tracking-widest">
                                         <Keyboard className="w-3.5 h-3.5" />
-                                        Manual ID/Plate Verification
+                                        Manual Plate Lookup
                                     </div>
                                     <div className="flex gap-2">
                                         <Input 
-                                            placeholder="PLATE OR TICKET ID" 
+                                            placeholder="ENTER PLATE NUMBER" 
                                             className="h-12 rounded-xl bg-background border-border font-bold uppercase"
-                                            value={ticketId}
-                                            onChange={(e) => setTicketId(e.target.value.toUpperCase())}
+                                            value={manualId}
+                                            onChange={(e) => setManualId(e.target.value.toUpperCase())}
                                         />
                                         <Button 
                                             className="h-12 px-6 font-black rounded-xl shadow-lg shadow-primary/20"
-                                            onClick={() => handleVerify(ticketId)}
-                                            disabled={isLoading || !ticketId}
+                                            onClick={() => handleVerify(manualId)}
+                                            disabled={isLoading || !manualId}
                                         >
                                             {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
                                         </Button>
@@ -243,9 +250,9 @@ export function ProviderQRScanner() {
                                     <div className="w-24 h-24 bg-primary rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-xl shadow-primary/30 rotate-3">
                                         <CheckCircle2 className="w-12 h-12 text-white" />
                                     </div>
-                                    <h3 className="text-3xl font-black tracking-tighter">Verified</h3>
+                                    <h3 className="text-3xl font-black tracking-tighter">Identity Confirmed</h3>
                                     <p className="text-primary font-bold uppercase text-[10px] tracking-widest mt-2 px-3 py-1 bg-primary/10 rounded-full inline-block">
-                                        Action Required
+                                        Exact Ticket Match
                                     </p>
                                 </div>
                                 
@@ -253,22 +260,28 @@ export function ProviderQRScanner() {
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="p-5 rounded-[2rem] bg-slate-50 dark:bg-slate-800/50 border border-border">
                                             <p className="text-[10px] font-black text-muted-foreground uppercase mb-2">Plate</p>
-                                            <p className="text-xl font-black tracking-tight">{scanResult?.vehicle_number || scanResult?.vehicleNumber || 'N/A'}</p>
+                                            <p className="text-xl font-black tracking-tight">{scanResult?.vehicle_number || 'N/A'}</p>
                                         </div>
                                         <div className="p-5 rounded-[2rem] bg-primary/5 border border-primary/10">
                                             <p className="text-[10px] font-black text-primary/60 uppercase mb-2">Slot</p>
-                                            <p className="text-xl font-black text-primary tracking-tight">{scanResult?.slot?.slot_number || 'A-1'}</p>
+                                            <p className="text-xl font-black text-primary tracking-tight">{scanResult?.slot || 'A-1'}</p>
                                         </div>
                                     </div>
 
                                     <div className="space-y-4">
-                                        <div className="flex items-center gap-4 p-4 rounded-2xl border border-dashed border-border">
-                                            <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                                                <Car className="w-5 h-5 text-muted-foreground" />
+                                        <div className="flex items-center justify-between p-4 rounded-2xl border border-dashed border-border bg-slate-50/50">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm">
+                                                    <Car className="w-5 h-5 text-muted-foreground" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[10px] font-black text-muted-foreground uppercase">Vehicle Type</p>
+                                                    <p className="text-sm font-bold">{scanResult?.vehicle_type || 'CAR'}</p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="text-[10px] font-black text-muted-foreground uppercase">Vehicle Type</p>
-                                                <p className="text-sm font-bold">{scanResult?.vehicle_type || scanResult?.vehicleType || 'CAR'}</p>
+                                            <div className="text-right">
+                                                <p className="text-[10px] font-black text-muted-foreground uppercase">Ticket ID</p>
+                                                <p className="text-[10px] font-mono text-primary font-bold">{(scanResult?.id || '').slice(-12)}</p>
                                             </div>
                                         </div>
                                     </div>
@@ -301,7 +314,7 @@ export function ProviderQRScanner() {
                     <div className="inline-flex items-center gap-3 px-5 py-2.5 bg-white dark:bg-slate-900 rounded-full border border-border shadow-sm">
                         <div className="w-2 h-2 rounded-full bg-primary" />
                         <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
-                            Official Secure Gateway Interface
+                            Precise Gateway Verification Active
                         </p>
                     </div>
                 </div>
