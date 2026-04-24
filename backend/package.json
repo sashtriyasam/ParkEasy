@@ -5,7 +5,7 @@
   "scripts": {
     "test": "jest",
     "dev": "nodemon index.js",
-    "start": "node index.js",
+    "start": "npx prisma migrate deploy && node index.js",
     "build": "npx prisma generate",
     "prisma:generate": "prisma generate",
     "db:push": "prisma db push"

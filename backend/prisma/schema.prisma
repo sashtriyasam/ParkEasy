@@ -246,5 +246,6 @@ enum BookingType {
   ONLINE
   WALK_IN
   RESERVATION
+  OFFLINE
 }
 
