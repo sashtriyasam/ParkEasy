@@ -8,6 +8,7 @@ import { Badge } from '@/app/components/ui/badge';
 import { useApp } from '@/context/AppContext';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { toast } from 'sonner';
+import type { VehicleType } from '@/types';
 
 export function ProviderDashboard() {
   const navigate = useNavigate();
@@ -27,7 +28,12 @@ export function ProviderDashboard() {
 
 
   // Modal form state
-  const [manualData, setManualData] = useState({
+  const [manualData, setManualData] = useState<{
+    vehicleNumber: string;
+    vehicleType: VehicleType;
+    facilityId: string;
+    slotId: string;
+  }>({
     vehicleNumber: '',
     vehicleType: 'CAR',
     facilityId: '',
@@ -309,7 +315,7 @@ export function ProviderDashboard() {
                                 id="manual-vehicleType"
                                 className="w-full p-2.5 bg-gray-50 border border-gray-100 rounded-lg text-sm"
                                 value={manualData.vehicleType}
-                                onChange={(e) => setManualData({...manualData, vehicleType: e.target.value})}
+                                onChange={(e) => setManualData({...manualData, vehicleType: e.target.value as VehicleType})}
                              >
                                 <option value="CAR">Car</option>
                                 <option value="BIKE">Bike</option>

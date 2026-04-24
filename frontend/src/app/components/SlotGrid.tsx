@@ -16,6 +16,9 @@ const vehicleIcons: Record<VehicleType, React.ReactNode> = {
   scooter: <Bike className="w-4 h-4" />,
   car: <Car className="w-4 h-4" />,
   truck: <Truck className="w-4 h-4" />,
+  BIKE: <Bike className="w-4 h-4" />,
+  CAR: <Car className="w-4 h-4" />,
+  TRUCK: <Truck className="w-4 h-4" />,
 };
 
 export function SlotGrid({ slots, selectedSlot, onSlotSelect, readonly = false }: SlotGridProps) {

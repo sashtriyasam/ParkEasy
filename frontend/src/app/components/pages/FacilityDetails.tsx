@@ -9,17 +9,11 @@ import { SlotGrid } from '@/app/components/SlotGrid';
 import { useApp } from '@/context/AppContext';
 import { customerService } from '@/services/customer.service';
 import { mockPricing, mockReviews } from '@/data/mockData';
-import type { VehicleType } from '@/types';
+import type { VehicleType, ParkingSlot } from '@/types';
 import { toast } from 'sonner';
 
-interface NormalizedSlot {
-  id: string;
+interface NormalizedSlot extends ParkingSlot {
   floorName: string;
-  status: string;
-  vehicleType: VehicleType;
-  pricePerHour: number;
-  label?: string;
-  [key: string]: any;
 }
 
 
@@ -62,9 +56,13 @@ export function FacilityDetails() {
               }
               allSlots.push({
                 ...slot,
+                id: slot.id,
+                facilityId: id,
+                slotNumber: slot.slot_number || slot.slotNumber || '?',
+                floor: slot.floor || 0,
                 floorName,
                 // Normalize fields for frontend
-                status: (slot.status || 'free').toLowerCase(),
+                status: (slot.status || 'free').toLowerCase() as any,
                 vehicleType: (slot.vehicle_type || 'car').toLowerCase() as VehicleType,
                 pricePerHour: slot.price_per_hour ?? 20
               });

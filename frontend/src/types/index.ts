@@ -85,7 +85,7 @@ export interface Booking {
   status: BookingStatus;
   qrCode: string;
   /** How the booking was initiated */
-  bookingType?: 'walk-in' | 'reservation' | 'recurring';
+  bookingType?: 'walk-in' | 'reservation' | 'recurring' | 'ONLINE' | 'OFFLINE';
   facility_id?: string;
 }
 

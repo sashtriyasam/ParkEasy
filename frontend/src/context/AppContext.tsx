@@ -16,7 +16,7 @@ interface AppContextType {
   myFacilities: Facility[];
   slots: Record<string, ParkingSlot[]>;
   bookings: Booking[];
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, requestedRole?: string) => Promise<void>;
   logout: () => void;
   signup: (name: string, email: string, password: string, phone: string, role: 'customer' | 'provider') => Promise<void>;
   updateSlotStatus: (facilityId: string, slotId: string, status: ParkingSlot['status']) => void;
@@ -153,7 +153,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     loadInitialData();
   }, [loadInitialData]);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, _requestedRole?: string) => {
     setIsLoading(true);
     try {
       console.log(`Attempting login: ${email}`);

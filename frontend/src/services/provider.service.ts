@@ -1,5 +1,5 @@
 import apiClient from './api';
-import { OfflineBookingData } from '@/types';
+import type { OfflineBookingData } from '@/types';
 
 export interface DashboardStats {
     today_revenue: number;
