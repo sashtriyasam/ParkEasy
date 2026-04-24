@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite' // RESTART TRIGGER v2
+import { defineConfig } from 'vite'
 import path from 'path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
@@ -10,6 +10,15 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  server: {
+    watch: {
+      usePolling: true,
+      awaitWriteFinish: {
+        stabilityThreshold: 50,
+        pollInterval: 10,
+      },
+    },
+  },
   resolve: {
     alias: {
       // Alias @ to the src directory

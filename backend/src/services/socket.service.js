@@ -15,24 +15,35 @@ const initSocket = (server) => {
     io.on('connection', (socket) => {
         console.log(`User connected: ${socket.id}`);
 
+        const isValidId = (id) => (typeof id === 'string' && id.trim() !== '' && id !== 'undefined') || (typeof id === 'number' && Number.isFinite(id));
+        const sanitizeId = (id) => String(id).trim();
+
         socket.on('join_facility', (facilityId) => {
-            socket.join(`facility_${facilityId}`);
-            console.log(`Socket ${socket.id} joined facility: ${facilityId}`);
+            if (!isValidId(facilityId)) return socket.emit('error', { message: 'Invalid facility ID' });
+            const id = sanitizeId(facilityId);
+            socket.join(`facility_${id}`);
+            console.log(`Socket ${socket.id} joined facility: ${id}`);
         });
 
         socket.on('join_provider', (providerId) => {
-            socket.join(`provider_${providerId}`);
-            console.log(`Socket ${socket.id} joined provider room: ${providerId}`);
+            if (!isValidId(providerId)) return socket.emit('error', { message: 'Invalid provider ID' });
+            const id = sanitizeId(providerId);
+            socket.join(`provider_${id}`);
+            console.log(`Socket ${socket.id} joined provider room: ${id}`);
         });
 
         socket.on('leave_facility', (facilityId) => {
-            socket.leave(`facility_${facilityId}`);
-            console.log(`Socket ${socket.id} left facility: ${facilityId}`);
+            if (!isValidId(facilityId)) return;
+            const id = sanitizeId(facilityId);
+            socket.leave(`facility_${id}`);
+            console.log(`Socket ${socket.id} left facility: ${id}`);
         });
 
         socket.on('leave_provider', (providerId) => {
-            socket.leave(`provider_${providerId}`);
-            console.log(`Socket ${socket.id} left provider room: ${providerId}`);
+            if (!isValidId(providerId)) return;
+            const id = sanitizeId(providerId);
+            socket.leave(`provider_${id}`);
+            console.log(`Socket ${socket.id} left provider room: ${id}`);
         });
 
         socket.on('disconnect', () => {

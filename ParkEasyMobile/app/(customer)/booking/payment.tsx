@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, StatusBar } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { FadeInDown, Layout } from 'react-native-reanimated';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 
 import { useBookingFlowStore } from '../../../store/bookingFlowStore';
@@ -70,7 +70,7 @@ export default function PaymentScreen() {
 
     } catch (e: any) {
       console.error('Booking Creation Error', e);
-      showToast(e.response?.data?.message || 'Authorization failed. Please try again.', 'error');
+      showToast(e.response?.data?.message || 'Booking failed. Please try again.', 'error');
     } finally {
       setLoading(false);
     }

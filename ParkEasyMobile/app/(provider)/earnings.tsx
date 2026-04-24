@@ -11,7 +11,8 @@ import {
   Modal,
   TextInput,
   ActivityIndicator,
-  StatusBar
+  StatusBar,
+  Pressable
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -27,18 +28,21 @@ import { useThemeColors } from '../../hooks/useThemeColors';
 import { useHaptics } from '../../hooks/useHaptics';
 import { LineChart } from 'react-native-chart-kit';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useToast } from '../../components/Toast';
 import { ProfessionalCard } from '../../components/ui/ProfessionalCard';
 import { ProfessionalButton } from '../../components/ui/ProfessionalButton';
 import { ProfessionalInput } from '../../components/ui/ProfessionalInput';
 
 const { width } = Dimensions.get('window');
+const PAYOUT_METHODS: ('UPI' | 'BANK')[] = ['UPI', 'BANK'];
 
 export default function EarningsScreen() {
   const router = useRouter();
   const colors = useThemeColors();
   const haptics = useHaptics();
   const { showToast } = useToast();
+  const insets = useSafeAreaInsets();
 
   const [stats, setStats] = useState({
     totalEarnings: 0,
@@ -150,8 +154,8 @@ export default function EarningsScreen() {
         showToast("Invalid bank account number.", "error");
         return;
       }
-      if (!/^[A-Z]{4}[0-9A-Z]{7}$/.test(payoutDetails.ifsc)) {
-        showToast("Invalid IFSC code.", "error");
+      if (!/^[A-Z]{4}0[0-9A-Z]{6}$/.test(payoutDetails.ifsc)) {
+        showToast("Invalid IFSC code (5th character must be 0).", "error");
         return;
       }
     }
@@ -235,7 +239,7 @@ export default function EarningsScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={colors.isDark ? 'light-content' : 'dark-content'} />
       
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
             <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
          </TouchableOpacity>
@@ -305,16 +309,22 @@ export default function EarningsScreen() {
           {history.length > 0 ? (
             history.map((item, idx) => (
               <Animated.View 
-                 key={idx} 
+                 key={item.id || `${item.created_at}-${idx}`} 
                  entering={FadeInRight.delay(idx * 50).duration(600)}
               >
                 <ProfessionalCard style={styles.txCard} hasVibrancy={true}>
                   <View style={styles.txLeft}>
                     <View style={[styles.txIcon, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
                        <Ionicons 
-                          name={item.status === 'SUCCESS' ? 'checkmark-circle' : 'time'} 
+                          name={
+                            item.status === 'SUCCESS' ? 'checkmark-circle' : 
+                            (item.status === 'FAILED' || item.status === 'REJECTED') ? 'close-circle' : 'time'
+                          } 
                           size={20} 
-                          color={item.status === 'SUCCESS' ? colors.success : colors.warning} 
+                          color={
+                            item.status === 'SUCCESS' ? colors.success : 
+                            (item.status === 'FAILED' || item.status === 'REJECTED') ? colors.error : colors.warning
+                          } 
                         />
                     </View>
                     <View>
@@ -324,7 +334,10 @@ export default function EarningsScreen() {
                   </View>
                   <View style={styles.txRight}>
                      <Text style={[styles.txAmount, { color: colors.textPrimary }]}>₹{item.amount}</Text>
-                     <Text style={[styles.txStatus, { color: item.status === 'SUCCESS' ? colors.success : colors.warning }]}>{item.status}</Text>
+                     <Text style={[styles.txStatus, { 
+                        color: item.status === 'SUCCESS' ? colors.success : 
+                               (item.status === 'FAILED' || item.status === 'REJECTED') ? colors.error : colors.warning 
+                     }]}>{item.status}</Text>
                   </View>
                 </ProfessionalCard>
               </Animated.View>
@@ -340,8 +353,10 @@ export default function EarningsScreen() {
 
       {/* Withdrawal Modal (High-Fidelity) */}
       <Modal visible={showModal} transparent animationType="fade" onRequestClose={closeWithdrawModal}>
-        <BlurView intensity={90} tint="dark" style={styles.modalOverlay}>
-           <Animated.View entering={ZoomIn} style={[styles.modalContent, { backgroundColor: colors.background }]}>
+        <Pressable style={styles.modalOverlay} onPress={closeWithdrawModal}>
+          <BlurView intensity={90} tint="dark" style={StyleSheet.absoluteFill} />
+          <Pressable onPress={(e) => e.stopPropagation()}>
+            <Animated.View entering={ZoomIn} style={[styles.modalContent, { backgroundColor: colors.background }]}>
               <View style={styles.modalHeader}>
                  <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Withdraw Funds</Text>
                  <TouchableOpacity onPress={closeWithdrawModal}>
@@ -361,7 +376,7 @@ export default function EarningsScreen() {
 
                 <Text style={[styles.inputLabel, { color: colors.textMuted }]}>Payout Method</Text>
                 <View style={styles.methodTabs}>
-                   {['UPI', 'BANK'].map((m: any) => (
+                   {PAYOUT_METHODS.map((m) => (
                       <TouchableOpacity 
                          key={m}
                          style={[
@@ -409,7 +424,8 @@ export default function EarningsScreen() {
                 />
               </ScrollView>
            </Animated.View>
-        </BlurView>
+          </Pressable>
+        </Pressable>
       </Modal>
     </View>
   );
@@ -419,7 +435,6 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: {
-    paddingTop: 70,
     paddingHorizontal: 24,
     flexDirection: 'row',
     alignItems: 'center',

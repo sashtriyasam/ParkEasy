@@ -434,15 +434,25 @@ const cancelBooking = asyncHandler(async (req, res, next) => {
                 data: { status: 'CANCELLED' }
             });
 
-            // Re-fetch slot inside transaction to ensure accurate status
+            // Re-fetch slot and check for overlapping active sessions inside transaction
             if (ticket.slot_id) {
                 const currentSlot = await tx.parkingSlot.findUnique({
                     where: { id: ticket.slot_id },
                     select: { id: true, status: true }
                 });
 
-                // If the slot is currently OCCUPIED, and this was the active ticket, free it.
-                if (currentSlot && currentSlot.status === 'OCCUPIED') {
+                // Verify if any OTHER active ticket is utilizing this slot before freeing it.
+                // This prevents accidentally freeing a slot that has multiple concurrent active sessions (e.g. edge cases).
+                const otherActiveTicket = await tx.ticket.findFirst({
+                    where: {
+                        slot_id: ticket.slot_id,
+                        status: 'ACTIVE',
+                        id: { not: ticketId }
+                    }
+                });
+
+                // Only set to FREE if currently OCCUPIED and no other active tickets remain
+                if (currentSlot && currentSlot.status === 'OCCUPIED' && !otherActiveTicket) {
                     await tx.parkingSlot.update({
                         where: { id: ticket.slot_id },
                         data: { status: 'FREE' }

@@ -32,11 +32,12 @@ const generateTicketPDF = (ticket) => {
                 .text('Smart Parking Management System', 50, 85)
                 .moveDown();
 
+            const now = new Date();
             doc.fillColor('#111827') // Gray-900
                 .fontSize(10)
                 .text('Official Parking Invoice', 400, 60, { align: 'right' })
-                .text(`Issue Date: ${new Date().toLocaleDateString()}`, 400, 75, { align: 'right' })
-                .text(`Issue Time: ${new Date().toLocaleTimeString()}`, 400, 90, { align: 'right' });
+                .text(`Issue Date: ${now.toLocaleDateString()}`, 400, 75, { align: 'right' })
+                .text(`Issue Time: ${now.toLocaleTimeString()}`, 400, 90, { align: 'right' });
 
             // --- Ticket Info ---
             doc.fontSize(14).text('Ticket Information', 50, 110);
@@ -51,11 +52,11 @@ const generateTicketPDF = (ticket) => {
             doc.font('Helvetica-Bold').text('Vehicle:', rightX, startY).font('Helvetica').text(`${ticket.vehicle_number} (${ticket.vehicle_type})`, rightX + 60, startY);
 
             // Row 2
-            const facilityName = (ticket.facility?.name || ticket.parking_facility?.name || 'ParkEasy Facility');
+            const facilityName = (ticket.facility?.name ?? ticket.parking_facility?.name ?? 'ParkEasy Facility');
             doc.font('Helvetica-Bold').text('Facility:', leftX, startY + 20).font('Helvetica').text(facilityName, leftX + 80, startY + 20);
             
-            const slotNumber = (ticket.slot?.slot_number || ticket.slot?.slotNumber || ticket.parking_slot?.slot_number || 'N/A');
-            doc.font('Helvetica-Bold').text('Slot:', rightX, startY + 20).font('Helvetica').text(slotNumber, rightX + 60, startY + 20);
+            const slotNumber = (ticket.slot?.slot_number ?? ticket.slot?.slotNumber ?? ticket.parking_slot?.slot_number ?? 'N/A');
+            doc.font('Helvetica-Bold').text('Slot:', rightX, startY + 20).font('Helvetica').text(String(slotNumber), rightX + 60, startY + 20);
 
             // --- Time Table ---
             const tableTop = 200;

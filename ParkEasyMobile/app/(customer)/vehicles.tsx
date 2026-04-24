@@ -35,12 +35,38 @@ import { ProfessionalCard } from '../../components/ui/ProfessionalCard';
 import { ProfessionalButton } from '../../components/ui/ProfessionalButton';
 import { ProfessionalInput } from '../../components/ui/ProfessionalInput';
 
+const MAX_DELAY_MS = 300;
+
 function withAlpha(color: string, opacity: number): string {
-  if (!color.startsWith('#')) return color;
-  const r = parseInt(color.slice(1, 3), 16);
-  const g = parseInt(color.slice(3, 5), 16);
-  const b = parseInt(color.slice(5, 7), 16);
-  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  if (!color || !color.startsWith('#')) return color;
+  
+  let hex = color.slice(1);
+  
+  // Handle 3-char shorthand #RGB -> #RRGGBB
+  if (hex.length === 3) {
+    hex = hex.split('').map(c => c + c).join('');
+  }
+  
+  let r: number, g: number, b: number, a = 1;
+
+  if (hex.length === 6) {
+    r = parseInt(hex.slice(0, 2), 16);
+    g = parseInt(hex.slice(2, 4), 16);
+    b = parseInt(hex.slice(4, 6), 16);
+  } else if (hex.length === 8) {
+    r = parseInt(hex.slice(0, 2), 16);
+    g = parseInt(hex.slice(2, 4), 16);
+    b = parseInt(hex.slice(4, 6), 16);
+    a = parseInt(hex.slice(6, 8), 16) / 255;
+  } else {
+    return color; // Untracked hex format
+  }
+
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return color;
+  
+  // Combine embedded alpha with passed opacity and clamp to [0, 1]
+  const finalAlpha = Math.min(Math.max(a * opacity, 0), 1);
+  return `rgba(${r}, ${g}, ${b}, ${finalAlpha})`;
 }
 
 const { height } = Dimensions.get('window');
@@ -143,7 +169,7 @@ export default function VehiclesScreen() {
 
   const renderVehicle = ({ item, index }: { item: Vehicle; index: number }) => (
     <Animated.View 
-      entering={FadeInDown.delay(index * 100).duration(600)}
+      entering={FadeInDown.delay(Math.min(index * 100, MAX_DELAY_MS)).duration(600)}
       layout={Layout.springify()}
     >
       <ProfessionalCard style={styles.vehicleCard} hasVibrancy={true}>

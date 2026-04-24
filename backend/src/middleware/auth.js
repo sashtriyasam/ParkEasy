@@ -14,11 +14,11 @@ const protect = asyncHandler(async (req, res, next) => {
     } else if (req.query.token) {
         // Only allow query tokens for PDF/Invoice downloads as they are often accessed via direct browser links
         const allowedQueryTokenPaths = [
-            /\/api\/v1\/customer\/booking\/.*\/pdf/,
-            /\/api\/v1\/customer\/booking\/.*\/invoice\.pdf/
+            /^\/api\/v1\/customer\/booking\/[^/]+\/pdf$/,
+            /^\/api\/v1\/customer\/booking\/[^/]+\/invoice\.pdf$/
         ];
         
-        const isWhitelisted = allowedQueryTokenPaths.some(pattern => pattern.test(req.originalUrl));
+        const isWhitelisted = allowedQueryTokenPaths.some(pattern => pattern.test(req.path));
         
         if (isWhitelisted) {
             token = req.query.token;

@@ -61,7 +61,6 @@ export const ProfessionalCard: React.FC<ProfessionalCardProps> = ({
         android: { elevation: 6 }
       })
     },
-    animatedStyle,
     style
   ];
 
@@ -95,16 +94,16 @@ export const ProfessionalCard: React.FC<ProfessionalCardProps> = ({
   }
 
   return (
-    <Animated.View style={cardStyle}>
+    <View style={cardStyle}>
       {content}
-    </Animated.View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   outerContainer: {
     borderRadius: 28,
-    borderWidth: 0.5,
+    borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
   },
   childContainer: {

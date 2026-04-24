@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
+import axios, { isAxiosError } from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { IndianRupee, Users, ParkingSquare, TrendingUp, Plus, ScanLine, ArrowUpRight, Clock, Car, Loader2, RotateCw } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/app/components/ui/card';
@@ -13,6 +14,17 @@ export function ProviderDashboard() {
   const { user, facilities, bookings, createOfflineBooking, isLoading, refreshData } = useApp();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showManualModal, setShowManualModal] = useState(false);
+
+  // Modal accessibility: Escape key listener
+  useEffect(() => {
+    if (!showManualModal) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowManualModal(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showManualModal]);
+
 
   // Modal form state
   const [manualData, setManualData] = useState({
@@ -72,13 +84,17 @@ export function ProviderDashboard() {
         facility_id: manualData.facilityId,
         vehicle_number: manualData.vehicleNumber.toUpperCase(),
         vehicle_type: manualData.vehicleType,
-        slot_id: manualData.slotId || undefined
+        slot_id: manualData.slotId?.trim() || null
       });
       toast.success('Manual Check-in Successful');
       setShowManualModal(false);
       setManualData({ vehicleNumber: '', vehicleType: 'CAR', facilityId: '', slotId: '' });
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Manual check-in failed');
+    } catch (error: unknown) {
+      let message = 'Manual check-in failed';
+      if (isAxiosError(error) && error.response?.data?.message) {
+        message = error.response.data.message;
+      }
+      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -236,19 +252,36 @@ export function ProviderDashboard() {
 
         {/* Manual Check-in Modal [v1.9] */}
         {showManualModal && (
-           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <Card className="w-full max-w-md animate-in fade-in zoom-in duration-200">
+           <div 
+             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+             role="dialog"
+             aria-modal="true"
+             aria-labelledby="manual-modal-title"
+             onClick={() => setShowManualModal(false)}
+           >
+              <Card 
+                className="w-full max-w-md animate-in fade-in zoom-in duration-200"
+                onClick={(e) => e.stopPropagation()}
+              >
                  <CardHeader className="border-b">
                     <div className="flex justify-between items-center">
-                       <CardTitle>Manual Check-in</CardTitle>
-                       <Button variant="ghost" size="sm" onClick={() => setShowManualModal(false)}>✕</Button>
+                       <CardTitle id="manual-modal-title">Manual Check-in</CardTitle>
+                       <Button 
+                         variant="ghost" 
+                         size="sm" 
+                         onClick={() => setShowManualModal(false)}
+                         aria-label="Close manual check-in"
+                       >
+                         ✕
+                       </Button>
                     </div>
                  </CardHeader>
                  <CardContent className="pt-6">
                     <form onSubmit={handleManualCheckIn} className="space-y-4">
                        <div className="space-y-2">
-                          <label className="text-xs font-bold text-gray-500 uppercase">Facility</label>
+                          <label htmlFor="manual-facility" className="text-xs font-bold text-gray-500 uppercase">Facility</label>
                           <select 
+                            id="manual-facility"
                             className="w-full p-2.5 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                             value={manualData.facilityId}
                             onChange={(e) => setManualData({...manualData, facilityId: e.target.value})}
@@ -260,8 +293,9 @@ export function ProviderDashboard() {
                           </select>
                        </div>
                        <div className="space-y-2">
-                          <label className="text-xs font-bold text-gray-500 uppercase">Vehicle Number</label>
+                          <label htmlFor="manual-vehicleNumber" className="text-xs font-bold text-gray-500 uppercase">Vehicle Number</label>
                           <input 
+                            id="manual-vehicleNumber"
                             placeholder="e.g. DL 10 AB 1234"
                             className="w-full p-2.5 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                             value={manualData.vehicleNumber}
@@ -270,8 +304,9 @@ export function ProviderDashboard() {
                        </div>
                        <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
-                             <label className="text-xs font-bold text-gray-500 uppercase">Vehicle Type</label>
+                             <label htmlFor="manual-vehicleType" className="text-xs font-bold text-gray-500 uppercase">Vehicle Type</label>
                              <select 
+                                id="manual-vehicleType"
                                 className="w-full p-2.5 bg-gray-50 border border-gray-100 rounded-lg text-sm"
                                 value={manualData.vehicleType}
                                 onChange={(e) => setManualData({...manualData, vehicleType: e.target.value})}
@@ -282,8 +317,9 @@ export function ProviderDashboard() {
                              </select>
                           </div>
                           <div className="space-y-2">
-                             <label className="text-xs font-bold text-gray-500 uppercase">Slot ID (Optional)</label>
+                             <label htmlFor="manual-slotId" className="text-xs font-bold text-gray-500 uppercase">Slot ID (Optional)</label>
                              <input 
+                                id="manual-slotId"
                                 placeholder="Auto"
                                 className="w-full p-2.5 bg-gray-50 border border-gray-100 rounded-lg text-sm"
                                 value={manualData.slotId}
@@ -306,7 +342,15 @@ export function ProviderDashboard() {
   );
 }
 
-function StatMiniCard({ label, value, icon: Icon, color, bg }: any) {
+interface StatMiniCardProps {
+  label: string;
+  value: string | number;
+  icon: React.ElementType;
+  color: string;
+  bg: string;
+}
+
+function StatMiniCard({ label, value, icon: Icon, color, bg }: StatMiniCardProps) {
   return (
     <Card className="p-4 border-gray-100 shadow-sm flex flex-col justify-center">
        <div className={`w-8 h-8 ${bg} rounded-lg flex items-center justify-center mb-2`}>

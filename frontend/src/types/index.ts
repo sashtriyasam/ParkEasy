@@ -1,7 +1,9 @@
-export type VehicleType = 'bike' | 'scooter' | 'car' | 'truck';
+export type VehicleType = 'bike' | 'scooter' | 'car' | 'truck' | 'BIKE' | 'CAR' | 'TRUCK';
 export type SlotStatus = 'free' | 'occupied' | 'reserved' | 'maintenance';
 export type BookingStatus = 'active' | 'completed' | 'cancelled';
-export type PaymentMethod = 'upi' | 'card' | 'pay-at-exit';
+export type PaymentMethod = 'upi' | 'card' | 'pay-at-exit' | 'UPI' | 'CARD' | 'PAY_AT_EXIT';
+export type FacilityTier = 'basic' | 'standard' | 'premium';
+export type CurrencyCode = 'INR' | 'USD' | 'EUR';
 export type UserRole = 'customer' | 'provider';
 
 export interface User {
@@ -29,20 +31,18 @@ export interface Facility {
   availableSlots?: number;
   floors?: number;
   operatingHours?: string;
-  operating_hours?: string;
   amenities?: string[];
   providerId?: string;
-  provider_id?: string;
   verified?: boolean;
-  is_active?: boolean;
-  is_24_7?: boolean;
-  is_premium?: boolean;
-  tier?: string;
-  hourly_rate?: number;
-  base_price?: number;
-  distance?: string;
+  isActive?: boolean;
+  is24_7?: boolean;
+  isPremium?: boolean;
+  tier?: FacilityTier;
+  hourlyRate?: number;
+  basePrice?: number;
+  distance?: number;
   reviewCountSummary?: string;
-  currency?: string;
+  currency?: CurrencyCode;
 }
 
 export interface ParkingSlot {
@@ -70,16 +70,21 @@ export interface Booking {
   slotId: string;
   vehicleNumber: string;
   vehicleType: VehicleType;
+  /** Actual observed entry time (ISO string) */
   entryTime: string;
+  /** Actual observed exit time (ISO string), set on checkout */
   exitTime?: string;
+  /** Scheduled/planned start time (ISO string), used for reservations */
   startTime?: string;
+  /** Scheduled/planned end time (ISO string), used for reservations */
   endTime?: string;
   duration: number;
   amount: number;
   paymentMethod: PaymentMethod;
   status: BookingStatus;
   qrCode: string;
-  bookingType?: string;
+  /** How the booking was initiated */
+  bookingType?: 'walk-in' | 'reservation' | 'recurring';
   facility_id?: string;
 }
 
@@ -188,6 +193,7 @@ export interface Ticket {
   vehicle_type: VehicleType;
   entry_time: string;
   exit_time?: string;
+  /** Planned/expected duration in hours (set at booking time) */
   duration_hours?: number;
   amount?: number;
   payment_method?: PaymentMethod;
@@ -197,7 +203,10 @@ export interface Ticket {
   slot?: ParkingSlot;
   total_fee?: number;   // Backend field
   current_fee?: number; // Backend calculated field
-  duration?: number;    // Backend field
+  /** Actual duration in seconds as calculated by the backend at checkout */
+  duration?: number;
+  slot_number?: string;
+  slotNumber?: string;
 }
 
 export interface Reservation {
@@ -226,12 +235,23 @@ export interface TimeSlot {
   id: string;
   start: string;
   end: string;
-  status: string;
-  vehicle_type: string;
+  status: SlotStatus;
+  vehicle_type: VehicleType;
 }
 
 export interface SlotAvailabilityResponse {
   slot_id: string;
   date: string;
   booked_windows: TimeSlot[];
+}
+
+export interface OfflineBookingData {
+  facility_id: string;
+  vehicle_number: string;
+  vehicle_type: VehicleType;
+  slot_id?: string;
+  facilityId?: string;
+  vehicleNumber?: string;
+  vehicleType?: VehicleType;
+  slotId?: string;
 }

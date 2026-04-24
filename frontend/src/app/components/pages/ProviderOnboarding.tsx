@@ -15,7 +15,6 @@ export function ProviderOnboarding() {
     const navigate = useNavigate();
     const { refreshData } = useApp();
     const [loading, setLoading] = useState(false);
-    const [step, setStep] = useState(1);
     const [formData, setFormData] = useState({
         name: '',
         address: '',
@@ -31,7 +30,7 @@ export function ProviderOnboarding() {
         const { name, value } = e.target;
         setFormData(prev => ({
             ...prev,
-            [name]: value
+            [name]: name === 'total_floors' ? parseInt(value, 10) || 1 : value
         }));
     };
 
@@ -51,7 +50,7 @@ export function ProviderOnboarding() {
             // Ensure types match backend expectations
             const payload = {
                 ...formData,
-                total_floors: parseInt(formData.total_floors as any, 10),
+                total_floors: formData.total_floors,
                 // If user didn't pick, backend will geocode address
                 latitude: formData.latitude ?? null,
                 longitude: formData.longitude ?? null,
@@ -172,7 +171,7 @@ export function ProviderOnboarding() {
                                     <LocationPicker 
                                         lat={formData.latitude} 
                                         lng={formData.longitude} 
-                                        onChange={handleLocationChange as any} 
+                                        onChange={handleLocationChange} 
                                     />
                                 </div>
                             </div>

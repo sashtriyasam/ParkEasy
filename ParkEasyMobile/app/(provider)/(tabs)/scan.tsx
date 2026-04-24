@@ -55,7 +55,12 @@ export default function QRScannerScreen() {
     if (!permission) {
       requestPermission();
     }
-    
+    return () => {
+      if (resetTimer.current) clearTimeout(resetTimer.current);
+    };
+  }, [permission]);
+
+  useEffect(() => {
     scanLineY.value = withRepeat(
       withSequence(
         withTiming(scanAreaSize, { duration: 2500, easing: Easing.inOut(Easing.quad) }),
@@ -64,11 +69,7 @@ export default function QRScannerScreen() {
       -1,
       true
     );
-
-    return () => {
-      if (resetTimer.current) clearTimeout(resetTimer.current);
-    };
-  }, [permission]);
+  }, []);
 
   const animatedLineStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: scanLineY.value }],
@@ -226,17 +227,17 @@ export default function QRScannerScreen() {
                   <View style={styles.resultContent}>
                     <View style={[
                       styles.resultIconWrapper, 
-                      { backgroundColor: result.status === 'success' ? colors.success + '20' : result.status === 'warning' ? '#FACC1520' : colors.error + '20' }
+                      { backgroundColor: result.status === 'success' ? colors.success + '20' : result.status === 'warning' ? colors.warning + '20' : colors.error + '20' }
                     ]}>
                       <Ionicons 
                         name={result.status === 'success' ? 'shield-checkmark' : result.status === 'warning' ? 'alert-circle' : 'close-circle'} 
                         size={48} 
-                        color={result.status === 'success' ? colors.success : result.status === 'warning' ? '#FACC15' : colors.error} 
+                        color={result.status === 'success' ? colors.success : result.status === 'warning' ? colors.warning : colors.error} 
                       />
                     </View>
                     <Text style={[
                       styles.resultStatus,
-                      { color: result.status === 'success' ? colors.success : result.status === 'warning' ? '#FACC15' : colors.error }
+                      { color: result.status === 'success' ? colors.success : result.status === 'warning' ? colors.warning : colors.error }
                     ]}>
                       {result.status === 'success' ? 'ACCESS GRANTED' : result.status === 'warning' ? 'PAYMENT PENDING' : 'ACCESS DENIED'}
                     </Text>
@@ -246,7 +247,7 @@ export default function QRScannerScreen() {
                        label="Scan Next"
                        onPress={handleReset}
                        variant="primary"
-                       style={{ width: '100%' }}
+                       style={styles.fullWidthButton}
                     />
                   </View>
                 </Animated.View>
@@ -314,4 +315,5 @@ const styles = StyleSheet.create({
   permIconWrapper: { width: 80, height: 80, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 32 },
   permTitle: { fontSize: 22, fontWeight: '900', letterSpacing: -0.5, marginBottom: 12, textAlign: 'center' },
   permSubtitle: { fontSize: 15, textAlign: 'center', lineHeight: 22, fontWeight: '600', marginBottom: 40 },
+  fullWidthButton: { width: '100%' },
 });

@@ -92,7 +92,7 @@ export const useSocket = () => {
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
     };
-  }, [accessToken, socketInstance]);
+  }, [accessToken]); // socketInstance is module-level and intentionally omitted
 
   const joinFacility = (facilityId: string) => {
     socketInstance?.emit('join_facility', facilityId);

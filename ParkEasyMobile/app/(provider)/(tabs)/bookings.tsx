@@ -9,6 +9,7 @@ import { useThemeColors } from '../../../hooks/useThemeColors';
 import { useHaptics } from '../../../hooks/useHaptics';
 import { EmptyState } from '../../../components/EmptyState';
 import { Skeleton } from '../../../components/ui/SkeletonLoader';
+import { applyAlpha } from '../../../utils/colorUtils';
 
 export default function ProviderBookings() {
   const [bookings, setBookings] = useState<any[]>([]);
@@ -65,7 +66,7 @@ export default function ProviderBookings() {
             <Text style={[styles.idLabel, { color: colors.textMuted }]}>BOOKING ID</Text>
             <Text style={[styles.bookingId, { color: colors.textPrimary }]}>#{item?.id ? item.id.substring(0, 8).toUpperCase() : 'UNKNOWN'}</Text>
           </View>
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '15' }]}>
+          <View style={[styles.statusBadge, { backgroundColor: applyAlpha(getStatusColor(item.status), 0.15) }]}>
             <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>{item.status}</Text>
           </View>
         </View>
@@ -122,7 +123,7 @@ export default function ProviderBookings() {
       <StatusBar barStyle={colors.isDark ? 'light-content' : 'dark-content'} />
 
       <View style={styles.header}>
-         <BlurView intensity={20} tint={colors.isDark ? 'dark' : 'light'} style={styles.headerContent}>
+         <BlurView intensity={20} tint={colors.isDark ? 'dark' : 'light'} style={[styles.headerContent, { borderColor: colors.border }]}>
             <Text style={[styles.headerLabel, { color: colors.textMuted }]}>HISTORY & LOGS</Text>
             <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Recent Activity</Text>
          </BlurView>
@@ -169,7 +170,6 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     paddingHorizontal: 24,
     borderBottomWidth: 0.5,
-    borderColor: 'rgba(0,0,0,0.05)',
   },
   headerLabel: {
     fontSize: 10,

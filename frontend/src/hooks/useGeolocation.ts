@@ -14,6 +14,8 @@ export function useGeolocation() {
   });
 
   useEffect(() => {
+    let mounted = true;
+
     if (!navigator.geolocation) {
       setState({
         coordinates: null,
@@ -24,6 +26,7 @@ export function useGeolocation() {
     }
 
     const handleSuccess = (position: GeolocationPosition) => {
+      if (!mounted) return;
       setState({
         coordinates: [position.coords.latitude, position.coords.longitude],
         error: null,
@@ -32,6 +35,7 @@ export function useGeolocation() {
     };
 
     const handleError = (error: GeolocationPositionError) => {
+      if (!mounted) return;
       setState({
         coordinates: null,
         error: error.message,
@@ -44,6 +48,10 @@ export function useGeolocation() {
       timeout: 5000,
       maximumAge: 0,
     });
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   return state;

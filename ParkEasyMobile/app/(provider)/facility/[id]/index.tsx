@@ -21,7 +21,6 @@ import Animated, {
   FadeIn, 
   FadeInUp, 
   FadeInDown, 
-  Layout,
 } from 'react-native-reanimated';
 
 import { get, post, put } from '../../../../services/api';
@@ -77,12 +76,13 @@ export default function FacilityManagement() {
 
   const fetchBookings = useCallback(async () => {
     try {
-      const res = await get(`/provider/facilities/${id}/bookings`);
+      const res = await get(`/provider/bookings?facility_id=${id}&status=active`);
       if (res.data?.data) {
-        setBookings(res.data.data.activeBookings || []);
+        setBookings(res.data.data || []);
       }
     } catch (e) {
       console.error('Error refreshing bookings', e);
+      showToast('Failed to refresh bookings', 'error');
     }
   }, [id]);
 
@@ -104,6 +104,7 @@ export default function FacilityManagement() {
   const handleToggleStatus = async () => {
     if (!facility) return;
     haptics.impactMedium();
+    setActionLoading(true);
     try {
       const newStatus = !facility.is_active;
       await put(`/provider/facilities/${id}`, { is_active: newStatus });
@@ -111,6 +112,8 @@ export default function FacilityManagement() {
     } catch (error) {
       haptics.notificationError();
       showToast('Failed to update status', 'error');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -150,7 +153,27 @@ export default function FacilityManagement() {
     );
   }
 
-  if (!facility) return null;
+  if (!facility) {
+    return (
+      <View style={[styles.loadingHost, { backgroundColor: colors.background }]}>
+        <StatusBar barStyle={colors.isDark ? 'light-content' : 'dark-content'} />
+        <Animated.View entering={FadeInDown} style={styles.errorContainer}>
+          <Ionicons name="alert-circle-outline" size={80} color={colors.error} />
+          <Text style={[styles.navSubtitle, { color: colors.textMuted, marginTop: 24 }]}>ERROR 404</Text>
+          <Text style={[styles.navTitle, { color: colors.textPrimary, textAlign: 'center', marginTop: 8 }]}>Facility Not Found</Text>
+          <Text style={[styles.descriptionTxt, { color: colors.textSecondary, textAlign: 'center', marginTop: 12, marginBottom: 32 }]}>
+            This facility may have been removed or the link is invalid. Please verify and try again.
+          </Text>
+          <ProfessionalButton 
+            label="Return to Dashboard" 
+            onPress={() => router.back()}
+            variant="primary"
+            style={styles.errorBtn}
+          />
+        </Animated.View>
+      </View>
+    );
+  }
 
   const renderOverview = () => (
     <ScrollView
@@ -166,9 +189,10 @@ export default function FacilityManagement() {
               <Text style={[styles.statusLabel, { color: facility.is_active ? colors.success : colors.error }]}>
                 {facility.is_active ? 'Online' : 'Offline'}
               </Text>
-              <Switch
+               <Switch
                 value={facility.is_active}
                 onValueChange={handleToggleStatus}
+                disabled={actionLoading}
                 trackColor={{ false: colors.border, true: colors.success + '40' }}
                 thumbColor={facility.is_active ? colors.success : colors.textSecondary}
               />
@@ -235,7 +259,7 @@ export default function FacilityManagement() {
         <ScrollView showsVerticalScrollIndicator={false}>
           <View style={styles.slotsGridContainer}>
             {liveSlots.map((slot, index) => (
-              <Animated.View key={slot.id} entering={FadeIn.delay(index * 10)}>
+              <Animated.View key={slot.id} entering={FadeIn.delay(Math.min(index * 10, 300))}>
                 <TouchableOpacity
                   activeOpacity={0.7}
                   style={[
@@ -285,7 +309,9 @@ export default function FacilityManagement() {
             <View style={styles.bookingTop}>
               <View>
                 <Text style={[styles.vehicleNo, { color: colors.textPrimary }]}>{item.vehicle_number}</Text>
-                <Text style={[styles.bookingSub, { color: colors.textMuted }]}>Slot {item.slot_id} • {item.vehicle_type.toUpperCase()}</Text>
+                <Text style={[styles.bookingSub, { color: colors.textMuted }]}>
+                  Slot {item.slot_number || item.slot?.slot_number || 'N/A'} • {item.vehicle_type.toUpperCase()}
+                </Text>
               </View>
               <View style={[styles.liveTagDetail, { backgroundColor: colors.success + '15' }]}>
                 <View style={[styles.liveDotSmall, { backgroundColor: colors.success }]} />
@@ -333,7 +359,9 @@ export default function FacilityManagement() {
             <View key={rate.id || rate.vehicle_type} style={styles.tableRow}>
               <Text style={[styles.tableKey, { color: colors.textPrimary }]}>{rate.vehicle_type.toUpperCase()}</Text>
               <Text style={[styles.tableVal, { color: colors.textPrimary }]}>₹{rate.hourly_rate}</Text>
-              <Text style={[styles.tableVal, { color: colors.textPrimary }]}>₹{rate.daily_max || '--'}</Text>
+              <Text style={[styles.tableVal, { color: colors.textPrimary }]}>
+                {rate.daily_max !== null && rate.daily_max !== undefined ? `₹${rate.daily_max}` : '--'}
+              </Text>
             </View>
           ))}
         </ProfessionalCard>
@@ -506,4 +534,6 @@ const styles = StyleSheet.create({
   fabWrapper: { position: 'absolute', bottom: 40, left: 24, right: 24 },
   fabScan: { flexDirection: 'row', paddingVertical: 18, borderRadius: 22, justifyContent: 'center', alignItems: 'center', gap: 12, elevation: 12 },
   fabText: { color: 'white', fontSize: 17, fontWeight: '900', letterSpacing: 0.5 },
+  errorContainer: { alignItems: 'center', padding: 24, width: '100%' },
+  errorBtn: { width: 220, marginTop: 10 },
 });

@@ -463,16 +463,38 @@ const getFacilityDetails = asyncHandler(async (req, res, next) => {
         _sum: { total_fee: true }
     });
 
+    const activeBookings = await prisma.ticket.findMany({
+        where: {
+            facility_id: facilityId,
+            status: 'ACTIVE'
+        },
+        include: {
+            slot: { select: { slot_number: true } }
+        }
+    });
+
+    const transformedBookings = activeBookings.map(b => ({
+        ...b,
+        slot_number: b.slot?.slot_number || 'N/A'
+    }));
+
+    const allSlots = facility.floors.flatMap(f => f.parking_slots);
+
     const { floors, ...facilityData } = facility;
 
     res.status(200).json({
         status: 'success',
         data: {
-            ...facilityData,
-            _count: { parking_slots: totalSlots },
-            slots: totalSlots,
-            occupancy: totalSlots > 0 ? (occupiedSlots / totalSlots) * 100 : 0,
-            revenue: Number(todayRevenue._sum.total_fee || 0)
+            facility: {
+                ...facilityData,
+                _count: { parking_slots: totalSlots },
+                slots_count: totalSlots,
+                occupancy: totalSlots > 0 ? (occupiedSlots / totalSlots) * 100 : 0,
+                revenue: Number(todayRevenue._sum.total_fee || 0),
+                pricing_rules: facility.pricing_rules
+            },
+            slots: allSlots,
+            activeBookings: transformedBookings
         }
     });
 });
@@ -511,26 +533,36 @@ const bulkCreateSlotsByFacility = asyncHandler(async (req, res, next) => {
     }
 
     let floor = null;
-    const floorNum = parseInt(floor_number || 0);
+    let floorNum = 0;
 
     if (req.body.floor_id) {
         floor = await prisma.floor.findUnique({ where: { id: req.body.floor_id } });
-    }
+        if (!floor) {
+            return next(new AppError('Provided floor_id not found', 404));
+        }
+        floorNum = floor.floor_number;
+    } else {
+        if (floor_number !== undefined && floor_number !== null) {
+            const parsed = parseInt(floor_number);
+            if (Number.isNaN(parsed)) {
+                return next(new AppError('Invalid floor_number provided', 400));
+            }
+            floorNum = parsed;
+        }
 
-    if (!floor) {
         floor = await prisma.floor.findFirst({
             where: { facility_id: facilityId, floor_number: floorNum }
         });
-    }
 
-    if (!floor) {
-        floor = await prisma.floor.create({
-            data: {
-                facility_id: facilityId,
-                floor_number: floorNum,
-                floor_name: `Floor ${floorNum}`
-            }
-        });
+        if (!floor) {
+            floor = await prisma.floor.create({
+                data: {
+                    facility_id: facilityId,
+                    floor_number: floorNum,
+                    floor_name: `Floor ${floorNum}`
+                }
+            });
+        }
     }
 
     const slots = [];
@@ -933,8 +965,10 @@ const requestWithdrawal = asyncHandler(async (req, res, next) => {
     const { amount, payout_method, payout_details } = req.body;
     const providerId = req.user.id;
 
-    if (!amount || amount <= 0) {
-        return next(new AppError('Invalid withdrawal amount', 400));
+    const numericAmount = Number(amount);
+
+    if (isNaN(numericAmount) || !isFinite(numericAmount) || numericAmount <= 0) {
+        return next(new AppError('Invalid withdrawal amount. Must be a positive number.', 400));
     }
 
     const withdrawal = await prisma.$transaction(async (tx) => {
@@ -947,14 +981,14 @@ const requestWithdrawal = asyncHandler(async (req, res, next) => {
             throw new AppError('Provider account not found', 404);
         }
 
-        if (parseFloat(user.balance || 0) < amount) {
+        if (parseFloat(user.balance || 0) < numericAmount) {
             throw new AppError('Insufficient balance for withdrawal', 400);
         }
 
         const w = await tx.withdrawal.create({
             data: {
                 provider_id: providerId,
-                amount: amount,
+                amount: numericAmount,
                 status: 'PENDING',
                 payout_method: payout_method || 'UPI',
                 payout_details: JSON.stringify(payout_details || {})
@@ -963,7 +997,7 @@ const requestWithdrawal = asyncHandler(async (req, res, next) => {
 
         await tx.user.update({
             where: { id: providerId },
-            data: { balance: { decrement: amount } }
+            data: { balance: { decrement: numericAmount } }
         });
 
         return w;
@@ -1016,11 +1050,11 @@ const createOfflineBooking = asyncHandler(async (req, res, next) => {
     }
 
     // 2. Auto-allot slot if not provided OR verify provided slot
-    if (!slotId || slotId === 'Auto' || slotId === 'undefined') {
+    if (!slotId || slotId === 'Auto') {
         const freeSlot = await prisma.parkingSlot.findFirst({
             where: {
                 floor: { facility_id: facilityId },
-                vehicle_type: (vehicleType || 'CAR').toUpperCase(),
+                vehicle_type: vehicleType.toUpperCase(),
                 status: 'FREE',
                 is_active: true
             },
@@ -1038,8 +1072,12 @@ const createOfflineBooking = asyncHandler(async (req, res, next) => {
             include: { floor: { select: { facility_id: true } } }
         });
 
-        if (!slot || slot.floor.facility_id !== facilityId) {
-            return next(new AppError('The selected slot does not exist or does not belong to this facility.', 400));
+        if (!slot) {
+            return next(new AppError('Selected slot not found.', 404));
+        }
+
+        if (slot.floor.facility_id !== facilityId) {
+            return next(new AppError('The selected slot does not belong to this facility.', 400));
         }
 
         if (!slot.is_active) {

@@ -47,8 +47,12 @@ const createFacility = asyncHandler(async (req, res, next) => {
         },
     });
 
-    console.log(`[Socket] Notifying provider ${provider_id} of new facility`);
-    socketService.emitToProvider(provider_id, 'facility_created', facility);
+    try {
+        console.log(`[Socket] Notifying provider ${provider_id} of new facility`);
+        socketService.emitToProvider(provider_id, 'facility_created', facility);
+    } catch (socketErr) {
+        console.error(`[Socket] Failed to notify provider ${provider_id} for facility ${facility.id}:`, socketErr);
+    }
 
     res.status(201).json({ status: 'success', data: facility });
 });

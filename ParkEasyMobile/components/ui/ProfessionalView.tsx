@@ -21,7 +21,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({
   const colors = useThemeColors();
   
   return (
-    <View style={[styles.container, { borderRadius }, style]}>
+    <View style={[styles.container, { borderRadius, borderColor: (colors as any).border || colors.glassBorder || colors.textPrimary + '20' }, style]}>
       {hasVibrancy && (
         <BlurView 
             intensity={intensity} 
@@ -38,7 +38,6 @@ const styles = StyleSheet.create({
   container: {
     overflow: 'hidden',
     borderWidth: 0.5,
-    borderColor: 'rgba(255, 255, 255, 0.1)', // Subtle hairline
   }
 });
 

@@ -86,9 +86,9 @@ export default function ProviderTabLayout() {
         name="scan"
         options={{
           title: 'Scanner',
-          tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.scanIconWrapper, { backgroundColor: colors.primary }]}>
-              <Ionicons name="qr-code" size={24} color="white" />
+          tabBarIcon: ({ focused }) => (
+            <View style={[styles.scanIconWrapper, { backgroundColor: focused ? colors.primary : colors.primary + 'CC' }]}>
+              <Ionicons name={focused ? "qr-code" : "qr-code-outline"} size={24} color="white" />
             </View>
           ),
         }}

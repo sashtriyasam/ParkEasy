@@ -65,12 +65,35 @@ function formatPassDate(dateStr: string): string {
 }
 
 function withAlpha(color: string, opacity: number): string {
-  // Simple hex to rgba conversion
-  if (!color.startsWith('#')) return color;
-  const r = parseInt(color.slice(1, 3), 16);
-  const g = parseInt(color.slice(3, 5), 16);
-  const b = parseInt(color.slice(5, 7), 16);
-  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  if (!color || !color.startsWith('#')) return color;
+  
+  let hex = color.slice(1);
+  
+  // Handle 3-char shorthand #RGB -> #RRGGBB
+  if (hex.length === 3) {
+    hex = hex.split('').map(c => c + c).join('');
+  }
+  
+  let r: number, g: number, b: number, a = 1;
+
+  if (hex.length === 6) {
+    r = parseInt(hex.slice(0, 2), 16);
+    g = parseInt(hex.slice(2, 4), 16);
+    b = parseInt(hex.slice(4, 6), 16);
+  } else if (hex.length === 8) {
+    r = parseInt(hex.slice(0, 2), 16);
+    g = parseInt(hex.slice(2, 4), 16);
+    b = parseInt(hex.slice(4, 6), 16);
+    a = parseInt(hex.slice(6, 8), 16) / 255;
+  } else {
+    return color; // Untracked hex format
+  }
+
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return color;
+  
+  // Combine embedded alpha with passed opacity and clamp to [0, 1]
+  const finalAlpha = Math.min(Math.max(a * opacity, 0), 1);
+  return `rgba(${r}, ${g}, ${b}, ${finalAlpha})`;
 }
 
 export default function PassesScreen() {
@@ -176,7 +199,7 @@ export default function PassesScreen() {
       <StatusBar barStyle={colors.isDark ? 'light-content' : 'dark-content'} />
 
       <Animated.View entering={SlideInUp.duration(600)} style={styles.header}>
-        <BlurView intensity={20} tint={colors.isDark ? 'dark' : 'light'} style={styles.headerContent}>
+        <BlurView intensity={20} tint={colors.isDark ? 'dark' : 'light'} style={[styles.headerContent, { borderBottomColor: colors.border }]}>
           <View style={styles.headerTop}>
             <TouchableOpacity style={styles.navBtn} onPress={() => router.back()}>
               <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
@@ -286,7 +309,6 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 70 : 50,
     paddingBottom: 20,
     borderBottomWidth: 0.5,
-    borderColor: 'rgba(0,0,0,0.05)',
   },
   headerTop: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, gap: 12 },
   navBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },

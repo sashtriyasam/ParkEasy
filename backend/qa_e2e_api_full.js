@@ -22,13 +22,17 @@ async function runTests() {
     report.summary.total++;
   };
 
+  /**
+   * Helper to log non-fatal warnings (e.g. skipped tests due to config).
+   * Pushes messages into the final E2E report.
+   */
   const logWarn = (msg) => {
     console.log(`⚠️ WARNING: ${msg}`);
     report.warnings.push(msg);
   };
 
   let CUSTOMER_TOKEN, PROVIDER_TOKEN, FACILITY_ID, SLOT_ID, VEHICLE_ID, VEHICLE_NUMBER, TICKET_ID;
-  const unique_id = Math.random().toString(36).substring(7);
+  const unique_id = `${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`;
   const C_EMAIL = `qa_c_${unique_id}@test.com`;
   const P_EMAIL = `qa_p_${unique_id}@test.com`;
 
@@ -47,27 +51,38 @@ async function runTests() {
         throw err;
     });
     
-    const data = await res.json().catch(() => ({}));
+    // Clone response to allow reading body as text if JSON parsing fails
+    const clone = res.clone();
+    let data;
+    try {
+      data = await res.json();
+    } catch (err) {
+      const rawBody = await clone.text().catch(() => '<< Body consumed or unreadable >>');
+      console.error(`🚨 JSON_PARSE_ERROR [Path: ${path} | Status: ${res.status}]`);
+      console.error(`🚨 Message: ${err.message}`);
+      console.error(`🚨 Raw response: ${rawBody.substring(0, 500)}${rawBody.length > 500 ? '...' : ''}`);
+      data = { message: 'Incomplete or malformed JSON from server' };
+    }
     return { status: res.status, data };
   }
 
   console.log('--- STARTING ParkEasy FULL E2E API TESTS (PRODUCTION) ---');
 
-  // PHASE 2: AUTHENTICATION
-  // 2A - Register Customer
+  // PHASE 1: AUTHENTICATION
+  // 1A - Register Customer
   try {
     const res = await api('/auth/register', 'POST', { 
         email: C_EMAIL, 
         password: "QATest@1234", 
         full_name: "QA Customer", 
-        phone_number: `+91999${Math.floor(Math.random()*999999)}`, 
+        phone_number: `+91999${Math.floor(Math.random() * 900000) + 100000}`, 
         role: "CUSTOMER" 
     });
-    if (res.status === 201) logPass('2A: Customer Reg');
-    else logFail('2A: Customer Reg', 201, res.status, res.data.message);
-  } catch (err) { logFail('2A: Customer Reg', 201, 'ERR', err.message); }
+    if (res.status === 201) logPass('1A: Customer Reg');
+    else logFail('1A: Customer Reg', 201, res.status, res.data.message);
+  } catch (err) { logFail('1A: Customer Reg', 201, 'ERR', err.message); }
 
-  // 2B - Register Provider
+  // 1B - Register Provider
   try {
     const res = await api('/auth/register', 'POST', { 
         email: P_EMAIL, 
@@ -76,36 +91,38 @@ async function runTests() {
         role: "PROVIDER" 
     });
     if (res.status === 201) {
-      logPass('2B: Provider Reg');
+      logPass('1B: Provider Reg');
       // Login to get provider token
       const loginRes = await api('/auth/login', 'POST', { email: P_EMAIL, password: "QATest@1234" });
       if (loginRes.status === 200) {
         PROVIDER_TOKEN = loginRes.data.data.accessToken;
         console.log('DEBUG: Captured Provider Token');
+      } else {
+        logFail('1B: Provider Login (Post-Reg)', 200, loginRes.status, loginRes.data.message);
       }
-    } else logFail('2B: Provider Reg', 201, res.status, res.data.message);
-  } catch (err) { logFail('2B: Provider Reg', 201, 'ERR', err.message); }
+    } else logFail('1B: Provider Reg', 201, res.status, res.data.message);
+  } catch (err) { logFail('1B: Provider Reg', 201, 'ERR', err.message); }
 
-  // 2C - Login Customer
+  // 1C - Login Customer
   try {
     const res = await api('/auth/login', 'POST', { email: C_EMAIL, password: "QATest@1234" });
     if (res.status === 200) {
       CUSTOMER_TOKEN = res.data.data.accessToken;
-      logPass('2C: Customer Login');
-    } else logFail('2C: Customer Login', 200, res.status, res.data.message);
-  } catch (err) { logFail('2C: Customer Login', 200, 'ERR', err.message); }
+      logPass('1C: Customer Login');
+    } else logFail('1C: Customer Login', 200, res.status, res.data.message);
+  } catch (err) { logFail('1C: Customer Login', 200, 'ERR', err.message); }
 
-  // PHASE 3: CUSTOMER FLOWS
+  // PHASE 2: CUSTOMER FLOWS
   if (CUSTOMER_TOKEN) {
-    // 3A - Search Facilities
+    // 2A - Search Facilities
     try {
       const res = await api('/customer/search?latitude=19.0662&longitude=72.8659&radius=50', 'GET', null, CUSTOMER_TOKEN);
       if (res.status === 200 && Array.isArray(res.data.data) && res.data.data.length > 0) {
         FACILITY_ID = res.data.data[0].id;
-        console.log(`DEBUG: Found Facility ID: ${FACILITY_ID}`);
-        logPass('3A: Facility Search');
-      } else logFail('3A: Facility Search', 200, res.status, 'No facilities found nearby');
-    } catch (err) { logFail('3A: Facility Search', 200, 'ERR', err.message); }
+        if (process.env.VERBOSE) console.log(`DEBUG: Found Facility ID: ${FACILITY_ID}`);
+        logPass('2A: Facility Search');
+      } else logFail('2A: Facility Search', 200, res.status, 'No facilities found nearby');
+    } catch (err) { logFail('2A: Facility Search', 200, 'ERR', err.message); }
 
     try {
       const vNum = `MH01QA${Math.floor(1000 + Math.random() * 8999)}`;
@@ -117,11 +134,11 @@ async function runTests() {
       if (res.status === 201) {
         VEHICLE_ID = res.data.data.id;
         VEHICLE_NUMBER = vNum;
-        logPass('3B: Add Vehicle');
-      } else logFail('3B: Add Vehicle', 201, res.status, res.data.message);
-  } catch (err) { logFail('3B: Add Vehicle', 201, 'ERR', err.message); }
+        logPass('2B: Add Vehicle');
+      } else logFail('2B: Add Vehicle', 201, res.status, res.data.message);
+    } catch (err) { logFail('2B: Add Vehicle', 201, 'ERR', err.message); }
 
-    // 3C - Get Slots
+    // 2C - Get Slots
     if (FACILITY_ID) {
       try {
         const res = await api(`/customer/facility/${FACILITY_ID}/slots`, 'GET', null, CUSTOMER_TOKEN);
@@ -140,23 +157,23 @@ async function runTests() {
 
           if (foundSlot) {
             SLOT_ID = foundSlot.id;
-            logPass('3C: Get Free Slots');
+            logPass('2C: Get Free Slots');
           } else {
-            logFail('3C: Get Free Slots', 200, 200, 'No FREE CAR slots available in any floor');
+            logFail('2C: Get Free Slots', 200, 200, 'No FREE CAR slots available in any floor');
           }
         } else {
-          logFail('3C: Get Free Slots', 200, res.status, 'Failed to fetch slots');
+          logFail('2C: Get Free Slots', 200, res.status, 'Failed to fetch slots');
         }
-      } catch (err) { logFail('3C: Get Free Slots', 200, 'ERR', err.message); }
+      } catch (err) { logFail('2C: Get Free Slots', 200, 'ERR', err.message); }
     }
 
-    // 3D - Create Booking with Payment
-    if (SLOT_ID && VEHICLE_ID && FACILITY_ID) {
+    // 2D - Create Booking with Payment
+    if (SLOT_ID && VEHICLE_ID && FACILITY_ID && VEHICLE_NUMBER) {
       try {
         const res = await api('/customer/booking/confirm', 'POST', {
             slot_id: SLOT_ID,
             vehicle_type: "CAR",
-            vehicle_number: VEHICLE_NUMBER || "MH01QA1234",
+            vehicle_number: VEHICLE_NUMBER,
             entry_time: new Date().toISOString(),
             duration: 2,
             payment_method: "PAY_AT_EXIT",
@@ -164,15 +181,15 @@ async function runTests() {
         }, CUSTOMER_TOKEN);
         if (res.status === 201) {
           TICKET_ID = res.data.data.id;
-          logPass('3D: Create Booking');
+          logPass('2D: Create Booking');
         } else {
-          logFail('3D: Create Booking', 201, res.status, res.data.message || 'Booking failed');
+          logFail('2D: Create Booking', 201, res.status, res.data.message || 'Booking failed');
         }
-      } catch (err) { logFail('3D: Create Booking', 201, 'ERR', err.message); }
+      } catch (err) { logFail('2D: Create Booking', 201, 'ERR', err.message); }
     }
   }
 
-  // PHASE 5: PAYMENT FLOW (SIMULATION)
+  // PHASE 3: PAYMENT FLOW (SIMULATION)
   if (SLOT_ID && FACILITY_ID && CUSTOMER_TOKEN) {
     try {
       const res = await api('/payments/create-order', 'POST', { 
@@ -182,17 +199,28 @@ async function runTests() {
       }, CUSTOMER_TOKEN);
       
       if (res.status === 200 || res.status === 201) {
-        logPass('5A: Create Payment Order');
+        logPass('3A: Create Payment Order');
       } else if (res.status === 503) {
-        logWarn('5A: Payment skipped (Razorpay keys missing or test demo mode)');
+        logWarn('3A: Payment skipped (Razorpay keys missing or test demo mode)');
       } else {
-        logFail('5A: Create Payment Order', '200/503', res.status, res.data.message || 'Payment order failed');
+        logFail('3A: Create Payment Order', '200/503', res.status, res.data.message || 'Payment order failed');
       }
-    } catch (err) { logFail('5A: Create Payment Order', 200, 'ERR', err.message); }
+    } catch (err) { logFail('3A: Create Payment Order', 200, 'ERR', err.message); }
   }
 
-  console.log('\n--- FINAL E2E REPORT (PRODUCTION) ---');
+  console.log('\n--- FINAL E2E REPORT ---');
   console.log(JSON.stringify(report, null, 2));
+  return report;
 }
 
-runTests();
+runTests().then(report => {
+  if (report.summary.failed > 0) {
+    console.error(`\n🏁 Test suite failed with ${report.summary.failed} failures.`);
+    process.exit(1);
+  }
+  console.log('\n🏁 All tests completed successfully.');
+  process.exit(0);
+}).catch(err => {
+  console.error('\n🚨 Test runner crashed unexpectedly:', err);
+  process.exit(1);
+});

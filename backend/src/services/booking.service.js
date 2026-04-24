@@ -32,9 +32,10 @@ const isSlotAvailable = async (slotId, startTime, endTime, client = prisma) => {
         select: { status: true, reservation_expiry: true }
     });
 
-    if (slot && slot.status === 'RESERVED' && slot.reservation_expiry > new Date()) {
-        const resExpiry = new Date(slot.reservation_expiry);
-        if (startTime < resExpiry) return false;
+    if (!slot) return false;
+
+    if (slot.status === 'RESERVED' && slot.reservation_expiry && slot.reservation_expiry > new Date()) {
+        if (startTime < slot.reservation_expiry) return false;
     }
 
     return true;
@@ -82,23 +83,28 @@ const reserveSlot = async (facilityId, vehicleType, floorId = null, userId, star
         throw new AppError('No suitable slots found', 404);
     }
 
-    // B. Filter by availability and try to reserve
+    // B. Filter by availability and try to reserve atomatically
     for (const candidate of candidates) {
-        const available = await isSlotAvailable(candidate.id, startTime, endTime);
-        if (!available) continue;
+        const reservedId = await prisma.$transaction(async (tx) => {
+            // Re-verify availability within the transaction to prevent race conditions
+            const available = await isSlotAvailable(candidate.id, startTime, endTime, tx);
+            if (!available) return null;
 
-        const result = await prisma.parkingSlot.updateMany({
-            where: {
-                id: candidate.id,
-                status: candidate.status // Ensure status hasn't changed since our read
-            },
-            data: {
-                status: 'RESERVED',
-                reservation_expiry: expiryTime
-            }
+            const result = await tx.parkingSlot.updateMany({
+                where: {
+                    id: candidate.id,
+                    status: 'FREE' // Only reserve if it's still free
+                },
+                data: {
+                    status: 'RESERVED',
+                    reservation_expiry: expiryTime
+                }
+            });
+
+            return result.count > 0 ? candidate.id : null;
         });
 
-        if (result.count > 0) {
+        if (reservedId) {
             const response = {
                 slot_id: candidate.id,
                 reserved_until: expiryTime,
@@ -118,11 +124,11 @@ const reserveSlot = async (facilityId, vehicleType, floorId = null, userId, star
     throw new AppError('No available slots for the requested window', 409);
 };
 
-const confirmBooking = async (slotId, userId, vehicleNumber, vehicleType) => {
+const confirmBooking = async (slotId, userId, vehicleNumber, vehicleType, tx = null) => {
     let ticket, facilityId, providerId;
 
-    await prisma.$transaction(async (tx) => {
-        const slot = await tx.parkingSlot.findUnique({
+    const execute = async (client) => {
+        const slot = await client.parkingSlot.findUnique({
             where: { id: slotId },
             include: { floor: true }
         });
@@ -133,25 +139,55 @@ const confirmBooking = async (slotId, userId, vehicleNumber, vehicleType) => {
             throw new AppError('Slot is already occupied', 400);
         }
 
-        if (slot.status === 'RESERVED' && slot.reservation_expiry && new Date() > slot.reservation_expiry) {
-            throw new AppError('Reservation expired', 400);
+        if (slot.status === 'RESERVED') {
+            if (slot.reservation_expiry && new Date() > slot.reservation_expiry) {
+                throw new AppError('Reservation expired', 400);
+            }
+
+            // Ownership check: Find the pending ticket that reserved this slot
+            const pendingTicket = await client.ticket.findFirst({
+                where: {
+                    slot_id: slotId,
+                    status: 'PENDING_PAYMENT'
+                },
+                orderBy: { created_at: 'desc' }
+            });
+
+            if (pendingTicket && pendingTicket.customer_id !== userId) {
+                throw new AppError('Reservation does not belong to user', 403);
+            }
+
+            // If a valid pending ticket exists for this user, reuse it
+            if (pendingTicket) {
+                ticket = await client.ticket.update({
+                    where: { id: pendingTicket.id },
+                    data: {
+                        status: 'ACTIVE',
+                        entry_time: new Date(),
+                        vehicle_number: vehicleNumber,
+                        vehicle_type: vehicleType
+                    }
+                });
+            }
         }
 
-        // Create Ticket
-        ticket = await tx.ticket.create({
-            data: {
-                customer_id: userId,
-                slot_id: slotId,
-                facility_id: slot.floor.facility_id,
-                vehicle_number: vehicleNumber,
-                vehicle_type: vehicleType,
-                status: 'ACTIVE',
-                entry_time: new Date(),
-            }
-        });
+        // Create new ticket if no existing reservation was found/updated
+        if (!ticket) {
+            ticket = await client.ticket.create({
+                data: {
+                    customer_id: userId,
+                    slot_id: slotId,
+                    facility_id: slot.floor.facility_id,
+                    vehicle_number: vehicleNumber,
+                    vehicle_type: vehicleType,
+                    status: 'ACTIVE',
+                    entry_time: new Date(),
+                }
+            });
+        }
 
         // Update Slot
-        await tx.parkingSlot.update({
+        await client.parkingSlot.update({
             where: { id: slotId },
             data: {
                 status: 'OCCUPIED',
@@ -161,12 +197,19 @@ const confirmBooking = async (slotId, userId, vehicleNumber, vehicleType) => {
 
         facilityId = slot.floor.facility_id;
 
-        const facility = await tx.parkingFacility.findUnique({
+        const facility = await client.parkingFacility.findUnique({
             where: { id: facilityId },
             select: { provider_id: true }
         });
         providerId = facility?.provider_id;
-    });
+
+        return { ticket, facilityId, providerId };
+    };
+
+    const result = tx ? await execute(tx) : await prisma.$transaction(execute);
+    ticket = result.ticket;
+    facilityId = result.facilityId;
+    providerId = result.providerId;
 
     // Notify clients AFTER transaction
     if (facilityId) {
@@ -243,7 +286,8 @@ const createOfflineBooking = async (slotId, vehicleNumber, vehicleType, provider
 
         ticket = await tx.ticket.create({
             data: {
-                customer_id: providerId,
+                customer_id: null, // Offline customers don't have an app account
+                operator_id: providerId, // Record which provider/staff created this
                 slot_id: slotId,
                 facility_id: slot.floor.facility_id,
                 vehicle_number: vehicleNumber,

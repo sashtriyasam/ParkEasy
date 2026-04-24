@@ -13,10 +13,12 @@ async function main() {
   // Log active tickets without PII (email removed from query above)
   const maskedTickets = activeTickets.map(ticket => ({
     ...ticket,
-    customer: {
+    customer: ticket.customer ? {
       ...ticket.customer,
-      full_name: ticket.customer.full_name.replace(/(?<=.).(?=.*@)/g, '*')
-    }
+      full_name: ticket.customer.full_name 
+        ? ticket.customer.full_name.split(' ').map(n => `${n.charAt(0)}***`).join(' ')
+        : '[REDACTED]'
+    } : null
   }));
   console.log('Active Tickets in DB:', JSON.stringify(maskedTickets, null, 2));
 }

@@ -1,8 +1,19 @@
 import { PrismaClient } from '@prisma/client';
+import readline from 'readline';
 const prisma = new PrismaClient();
 
 async function main() {
-  const facilityId = 'a04cba03-5688-4441-a746-4b62e70a3d83';
+  if (process.env.NODE_ENV === 'production') {
+    console.error('❌ CRITICAL: This script CANNOT be run in production mode.');
+    process.exit(1);
+  }
+
+  // Usage: FACILITY_ID=<uuid> node qa_reset_slots.js  OR  node qa_reset_slots.js <uuid>
+  const facilityId = process.env.FACILITY_ID || process.argv[2];
+  if (!facilityId) {
+    console.error('❌ FACILITY_ID is required. Set it via env var (FACILITY_ID=<uuid>) or as the first CLI argument.');
+    process.exit(1);
+  }
   
   // Get latest ticket
   const ticket = await prisma.ticket.findFirst({
@@ -22,20 +33,16 @@ async function main() {
   slots.forEach(s => console.log(`  ${s.slot_number}: ${s.status}`));
   
   // --- SAFETY GUARDS ---
-  if (process.env.NODE_ENV === 'production') {
-    console.error('❌ CRITICAL: This script CANNOT be run in production mode.');
-    process.exit(1);
-  }
 
-  const readline = require('readline').createInterface({
+  const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout
   });
 
   const confirm = await new Promise(resolve => {
-    readline.question('\n⚠️  WARNING: This will reset ALL occupied slots and cancel active tickets. Type "YES" to proceed: ', resolve);
+    rl.question('\n⚠️  WARNING: This will reset ALL occupied slots and cancel active tickets. Type "YES" to proceed: ', resolve);
   });
-  readline.close();
+  rl.close();
 
   if (confirm !== 'YES') {
     console.log('Aborting reset.');
@@ -64,6 +71,7 @@ async function main() {
     console.log('Re-testing can now proceed with a clean state.');
   } catch (error) {
     console.error('❌ Transaction failed:', error);
+    process.exit(1);
   }
 }
 

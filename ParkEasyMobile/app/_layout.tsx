@@ -5,7 +5,6 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, StatusBar } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { useAuthStore } from '../store/authStore';
-import { useThemeStore } from '../store/themeStore';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { ToastContainer } from '../components/Toast';
 import { useOTAUpdate } from '../hooks/useOTAUpdate';

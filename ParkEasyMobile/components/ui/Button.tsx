@@ -54,7 +54,7 @@ export const Button: React.FC<ButtonProps> = ({
   const isGhost = variant === 'ghost';
   
   const getContainerStyle = (): ViewStyle => {
-    let styleObj: any = { ...styles.baseContainer, height: size === 'sm' ? 40 : size === 'lg' ? 56 : 48 };
+    let styleObj: ViewStyle = { ...styles.baseContainer, height: size === 'sm' ? 40 : size === 'lg' ? 56 : 48 };
     
     switch (variant) {
       case 'primary':
@@ -84,15 +84,15 @@ export const Button: React.FC<ButtonProps> = ({
   };
 
   const getTextStyle = (): TextStyle => {
-    let styleObj: any = { 
+    const computedColor = (variant === 'primary' || variant === 'danger') 
+      ? '#FFFFFF' 
+      : (variant === 'glass' ? colors.textPrimary : colors.primary);
+
+    let styleObj: TextStyle = { 
       fontSize: size === 'sm' ? 14 : size === 'lg' ? 17 : 15,
       fontWeight: '700',
-      color: variant === 'primary' || variant === 'danger' ? '#FFFFFF' : colors.primary
+      color: computedColor
     };
-
-    if (variant === 'glass') {
-      styleObj.color = colors.textPrimary;
-    }
 
     if (textStyle) {
       styleObj = { ...styleObj, ...textStyle };

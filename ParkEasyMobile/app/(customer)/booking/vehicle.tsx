@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, ComponentProps } from 'react';
 import { 
   View, 
   Text, 
@@ -24,17 +24,31 @@ import { Vehicle, VehicleType } from '../../../types';
 import { VEHICLE_TYPE_COLORS } from '../../../constants/colors';
 import { ProfessionalCard } from '../../../components/ui/ProfessionalCard';
 import { ProfessionalButton } from '../../../components/ui/ProfessionalButton';
+import { useToast } from '../../../components/Toast';
 
 
 
 const withAlpha = (hex: string, alpha: number): string => {
   if (!hex || !hex.startsWith('#')) return hex;
   let normalized = hex.slice(1);
-  if (normalized.length === 3) {
+  
+  // Expand shorthand formats
+  if (normalized.length === 3 || normalized.length === 4) {
     normalized = normalized.split('').map(c => c + c).join('');
   }
-  const alphaHex = Math.round(alpha * 255).toString(16).padStart(2, '0');
-  return `#${normalized}${alphaHex}`;
+  
+  // 2-digit hex alpha
+  const alphaHex = Math.round(Math.max(0, Math.min(1, alpha)) * 255).toString(16).padStart(2, '0').toUpperCase();
+  
+  if (normalized.length === 8) {
+    // Replace existing alpha
+    return `#${normalized.slice(0, 6).toUpperCase()}${alphaHex}`;
+  } else if (normalized.length === 6) {
+    // Append new alpha
+    return `#${normalized.toUpperCase()}${alphaHex}`;
+  }
+  
+  return hex;
 };
 
 export default function SelectVehicleScreen() {
@@ -43,30 +57,38 @@ export default function SelectVehicleScreen() {
   const haptics = useHaptics();
   const { setVehicle, vehicle_number, vehicle_type: storeVehicleType } = useBookingFlowStore();
   
+  const [fetchError, setFetchError] = useState(false);
+  const { showToast } = useToast();
+  
   const [savedVehicles, setSavedVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   
   const [manualNumber, setManualNumber] = useState(vehicle_number || '');
   const [manualType, setManualType] = useState<VehicleType | null>(storeVehicleType || null);
 
-  const vehicleTypes: { label: string; value: VehicleType; icon: keyof typeof Ionicons.glyphMap }[] = [
+  const vehicleTypes: { label: string; value: VehicleType; icon: ComponentProps<typeof Ionicons>['name'] }[] = [
     { label: 'Bike', value: 'bike', icon: 'bicycle-outline' },
     { label: 'Scooter', value: 'scooter', icon: 'bicycle' },
     { label: 'Car', value: 'car', icon: 'car-outline' },
-    { label: 'Truck', value: 'truck', icon: 'bus-outline' },
+    { label: 'Truck', value: 'truck', icon: 'cube-outline' },
   ];
 
+  const fetchVehicles = async () => {
+    setLoading(true);
+    setFetchError(false);
+    try {
+      const res = await get('/customer/vehicles');
+      setSavedVehicles(res.data.data || []);
+    } catch (e) {
+      console.error('Error fetching vehicles', e);
+      showToast('Could not load your vehicles', 'error');
+      setFetchError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchVehicles = async () => {
-      try {
-        const res = await get('/customer/vehicles');
-        setSavedVehicles(res.data.data || []);
-      } catch (e) {
-        console.error('Error fetching vehicles', e);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchVehicles();
   }, []);
 
@@ -126,6 +148,11 @@ export default function SelectVehicleScreen() {
             <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>AUTHORIZED FLEET</Text>
             {loading ? (
               <ActivityIndicator color={colors.primary} style={styles.loader} />
+            ) : fetchError ? (
+              <TouchableOpacity onPress={fetchVehicles} style={styles.retryContainer}>
+                 <Ionicons name="refresh" size={20} color={colors.primary} />
+                 <Text style={[styles.retryText, { color: colors.primary }]}>RETRY LOADING FLEET</Text>
+              </TouchableOpacity>
             ) : savedVehicles.length > 0 ? (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.savedScroll}>
                 {savedVehicles.map((vehicle, i) => (
@@ -186,7 +213,7 @@ export default function SelectVehicleScreen() {
                       }}
                     >
                       <Ionicons 
-                        name={type.icon as any} 
+                        name={type.icon} 
                         size={20} 
                         color={isActive ? colors.primary : colors.textMuted} 
                       />
@@ -234,7 +261,9 @@ const styles = StyleSheet.create({
   vehicleIcon: { width: 62, height: 62, borderRadius: 31, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
   vehicleNumber: { fontSize: 18, fontWeight: '900', letterSpacing: 0.5 },
   vehicleNick: { fontSize: 10, fontWeight: '900', marginTop: 6, letterSpacing: 1.5, opacity: 0.6 },
-  loader: { alignSelf: 'flex-start', marginLeft: 40 },
+  loader: { alignSelf: 'flex-start', marginLeft: 40, paddingVertical: 20 },
+  retryContainer: { flexDirection: 'row', alignItems: 'center', gap: 12, marginLeft: 28, paddingVertical: 12 },
+  retryText: { fontSize: 10, fontWeight: '900', letterSpacing: 1.5 },
   emptyCard: { marginHorizontal: 24, padding: 40, alignItems: 'center', borderRadius: 32, borderStyle: 'dashed' },
   emptyText: { fontSize: 10, fontWeight: '900', letterSpacing: 1.5, opacity: 0.5 },
   manualCard: { marginHorizontal: 24, borderRadius: 40, padding: 28 },

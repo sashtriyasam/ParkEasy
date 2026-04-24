@@ -20,11 +20,13 @@ import { BlurView } from 'expo-blur';
 import { useThemeColors } from '../../hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 
-interface ProfessionalInputProps extends TextInputProps {
+interface ProfessionalInputProps extends Omit<TextInputProps, 'onFocus' | 'onBlur'> {
   label?: string;
   icon?: keyof typeof Ionicons.glyphMap;
   error?: string;
   containerStyle?: ViewStyle;
+  onFocus?: (e: NativeSyntheticEvent<TextInputFocusEventData>) => void;
+  onBlur?: (e: NativeSyntheticEvent<TextInputFocusEventData>) => void;
 }
 
 export const ProfessionalInput: React.FC<ProfessionalInputProps> = ({
@@ -40,13 +42,13 @@ export const ProfessionalInput: React.FC<ProfessionalInputProps> = ({
   const focusProgress = useSharedValue(0);
   const colors = useThemeColors();
 
-  const handleFocus = (e: any) => {
+  const handleFocus = (e: NativeSyntheticEvent<TextInputFocusEventData>) => {
     setIsFocused(true);
     focusProgress.value = withTiming(1, { duration: 250 });
     onFocus?.(e);
   };
 
-  const handleBlur = (e: any) => {
+  const handleBlur = (e: NativeSyntheticEvent<TextInputFocusEventData>) => {
     setIsFocused(false);
     focusProgress.value = withTiming(0, { duration: 250 });
     onBlur?.(e);
@@ -143,4 +145,3 @@ const styles = StyleSheet.create({
   }
 });
 
-// Alias

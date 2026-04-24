@@ -60,26 +60,29 @@ export default function SignupScreen() {
 
   const handleSignup = async () => {
     if (isSubmitting) return;
-    haptics.impactMedium();
 
     if (!name || !email || !password || !phone) {
+      haptics.impactMedium();
       showToast('ALL FIELDS MANDATORY', 'error');
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
+      haptics.impactMedium();
       showToast('INVALID EMAIL FORMAT', 'error');
       return;
     }
 
     if (password.length < 6) {
+      haptics.impactMedium();
       showToast('PASSWORD TOO SHORT (MIN 6)', 'error');
       return;
     }
 
     const sanitizedPhone = phone.replace(/\D/g, '');
     if (sanitizedPhone.length < 10) {
+      haptics.impactMedium();
       showToast('INVALID PHONE NUMBER', 'error');
       return;
     }
@@ -228,10 +231,10 @@ const styles = StyleSheet.create({
   logoCard: { flex: 1, borderRadius: 22, justifyContent: 'center', alignItems: 'center', padding: 0 },
   logoLetter: { fontSize: 36, fontWeight: '900', letterSpacing: -2 },
   title: { fontSize: 26, fontWeight: '900', letterSpacing: -0.5 },
-  subtitle: { fontSize: 10, fontWeight: '900', marginTop: 10, letterSpacing: 2, opacity: 0.6 },
+  subtitle: { fontSize: 12, fontWeight: '900', marginTop: 10, letterSpacing: 2, opacity: 0.85 },
   card: { padding: 32, borderRadius: 40 },
   formHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 24 },
-  formLabelText: { fontSize: 9, fontWeight: '900', letterSpacing: 2 },
+  formLabelText: { fontSize: 11, fontWeight: '900', letterSpacing: 2, opacity: 0.9 },
   actionBtn: { height: 60, borderRadius: 20, marginTop: 12, marginBottom: 28 },
   switchBox: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 4 },
   switchText: { fontSize: 11, fontWeight: '600' },

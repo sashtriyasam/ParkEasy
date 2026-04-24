@@ -31,6 +31,7 @@ import { providerService } from '@/services/provider.service';
 import type { Facility } from '@/services/provider.service';
 import { useApp } from '@/context/AppContext';
 import { LocationPicker } from '@/app/components/shared/LocationPicker';
+import axios from 'axios';
 
 export function ProviderFacilities() {
     const navigate = useNavigate();
@@ -51,8 +52,8 @@ export function ProviderFacilities() {
         operating_hours: '',
         total_floors: 1,
         description: '',
-        latitude: 0,
-        longitude: 0,
+        latitude: null as number | null,
+        longitude: null as number | null,
     });
 
     useEffect(() => {
@@ -90,6 +91,11 @@ export function ProviderFacilities() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        
+        if (formData.latitude === null || formData.longitude === null) {
+            toast.error('Please select a location on the map');
+            return;
+        }
         try {
             if (editingFacility) {
                 await providerService.updateFacility(editingFacility.id, formData);
@@ -106,9 +112,15 @@ export function ProviderFacilities() {
             setEditingFacility(null);
             resetForm();
             loadFacilities(); // Keep local refresh for immediate grid update
-        } catch (error) {
-            toast.error(editingFacility ? 'Failed to update facility' : 'Failed to create facility');
-            console.error(error);
+        } catch (error: unknown) {
+            let message = editingFacility ? 'Failed to update facility' : 'Failed to create facility';
+            if (axios.isAxiosError(error)) {
+                message = error.response?.data?.message || message;
+            } else if (error instanceof Error) {
+                message = error.message;
+            }
+            toast.error(message);
+            console.error("Submit error:", error);
         }
     };
 
@@ -120,8 +132,8 @@ export function ProviderFacilities() {
             operating_hours: '',
             total_floors: 1,
             description: '',
-            latitude: 0,
-            longitude: 0,
+            latitude: null,
+            longitude: null,
         });
     };
 
@@ -134,8 +146,8 @@ export function ProviderFacilities() {
             operating_hours: facility.operating_hours,
             total_floors: facility.total_floors,
             description: facility.description || '',
-            latitude: Number(facility.latitude) || 0,
-            longitude: Number(facility.longitude) || 0,
+            latitude: facility.latitude != null ? Number(facility.latitude) : null,
+            longitude: facility.longitude != null ? Number(facility.longitude) : null,
         });
         setIsAddDialogOpen(true);
     };
@@ -147,8 +159,14 @@ export function ProviderFacilities() {
             toast.success('Facility deleted successfully');
             setDeleteConfirmId(null);
             loadFacilities();
-        } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Failed to delete facility');
+        } catch (error: unknown) {
+            let message = 'Failed to delete facility';
+            if (axios.isAxiosError(error)) {
+                message = error.response?.data?.message || message;
+            } else if (error instanceof Error) {
+                message = error.message;
+            }
+            toast.error(message);
             console.error("Delete error:", error);
         } finally {
             setIsDeleting(false);

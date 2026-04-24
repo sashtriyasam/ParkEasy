@@ -1,4 +1,5 @@
 import apiClient from './api';
+import { OfflineBookingData } from '@/types';
 
 export interface DashboardStats {
     today_revenue: number;
@@ -55,7 +56,20 @@ export interface RecentBooking {
     slot_number: string;
     entry_time: string;
     status: string;
-    amount: number;
+}
+
+
+
+export interface OfflineBookingResponse {
+    id: string;
+    facility_id: string;
+    slot_id?: string | null;
+    vehicle_number: string;
+    vehicle_type: string;
+    status: string;
+    booking_type: string;
+    entry_time: string;
+    [key: string]: any;
 }
 
 export const providerService = {
@@ -131,8 +145,13 @@ export const providerService = {
     },
 
     // Pricing
-    setPricingRule: async (data: { facility_id: string; vehicle_type: string; hourly_rate: number; daily_max?: number }): Promise<any> => {
-        const response = await apiClient.post('/provider/pricing-rules', data);
+    setPricingRule: async ({ facilityId, vehicleType, hourlyRate, dailyMax }: { facilityId: string; vehicleType: string; hourlyRate: number; dailyMax?: number }): Promise<any> => {
+        const response = await apiClient.post('/provider/pricing-rules', {
+            facility_id: facilityId,
+            vehicle_type: vehicleType,
+            hourly_rate: hourlyRate,
+            daily_max: dailyMax
+        });
         return response.data.data;
     },
 
@@ -161,8 +180,8 @@ export const providerService = {
         return response.data;
     },
 
-    createOfflineBooking: async (data: any): Promise<any> => {
+    createOfflineBooking: async (data: OfflineBookingData): Promise<OfflineBookingResponse> => {
         const response = await apiClient.post('/provider/bookings/offline', data);
-        return response.data.data;
+        return response.data.data as OfflineBookingResponse;
     },
 };

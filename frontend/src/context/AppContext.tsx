@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
-import type { User, Facility, ParkingSlot, Booking, VehicleType, PaymentMethod } from '@/types';
+import type { User, Facility, ParkingSlot, Booking, VehicleType, PaymentMethod, OfflineBookingData } from '@/types';
 // Remove mock imports
 // import { mockFacilities, mockSlots, mockBookings } from '@/data/mockData';
 import { authService } from '@/services/auth.service';
@@ -13,15 +13,16 @@ interface AppContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   facilities: Facility[];
+  myFacilities: Facility[];
   slots: Record<string, ParkingSlot[]>;
   bookings: Booking[];
-  login: (email: string, password: string, role: 'customer' | 'provider') => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   signup: (name: string, email: string, password: string, phone: string, role: 'customer' | 'provider') => Promise<void>;
   updateSlotStatus: (facilityId: string, slotId: string, status: ParkingSlot['status']) => void;
   createBooking: (booking: Omit<Booking, 'id'>) => Promise<Booking>;
   cancelBooking: (ticketId: string) => Promise<void>;
-  createOfflineBooking: (data: any) => Promise<Booking>;
+  createOfflineBooking: (data: OfflineBookingData) => Promise<Booking>;
   getBookingsByUser: (userId: string) => Booking[];
   getFacilityById: (id: string) => Facility | undefined;
   refreshData: () => Promise<void>;
@@ -34,10 +35,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [facilities, setFacilities] = useState<Facility[]>([]);
+  const [myFacilities, setMyFacilities] = useState<Facility[]>([]);
   const [slots, setSlots] = useState<Record<string, ParkingSlot[]>>({});
   const [bookings, setBookings] = useState<Booking[]>([]);
 
   // Helper to standardise user object from backend to frontend
+  // Helper functions for type-safe parsing from backend
+  const parseVehicleType = (type: any): VehicleType => {
+    const val = (type || '').toLowerCase();
+    if (['car', 'bike', 'scooter', 'truck'].includes(val)) return val as VehicleType;
+    return 'car';
+  };
+
+  const parsePaymentMethod = (method: any): PaymentMethod => {
+    const val = (method || '').toLowerCase().replace(/_/g, '-');
+    if (['upi', 'card', 'pay-at-exit'].includes(val)) return val as PaymentMethod;
+    return 'pay-at-exit';
+  };
+
+  const parseBookingStatus = (status: any): Booking['status'] => {
+    const val = (status || '').toLowerCase();
+    if (['active', 'completed', 'cancelled'].includes(val)) return val as any;
+    return 'active';
+  };
+
   const mapBackendUserToFrontend = (backendUser: any): User => ({
     id: backendUser.id,
     name: backendUser.full_name,
@@ -48,7 +69,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   });
 
   const mapBackendFacilityToFrontend = (f: any): Facility => ({
-    ...f,
     id: f.id,
     name: f.name,
     address: f.address,
@@ -56,10 +76,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     latitude: f.latitude != null ? parseFloat(f.latitude) : 0,
     longitude: f.longitude != null ? parseFloat(f.longitude) : 0,
     image_url: f.image_url || (f.images && f.images[0]),
+    description: f.description,
+    rating: f.rating || 0,
+    reviewCount: f.review_count || 0,
     totalSlots: f.total_slots || f._count?.parking_slots || 0,
     availableSlots: f.available_slots !== undefined ? f.available_slots : (f.total_slots || f._count?.parking_slots || 0),
+    floors: f.total_floors || f.floors,
     providerId: f.provider_id,
     operatingHours: f.operating_hours,
+    isActive: f.is_active,
+    is24_7: f.is_24_7,
+    isPremium: f.is_premium,
+    hourlyRate: f.hourly_rate,
+    basePrice: f.base_price,
+    amenities: f.amenities || [],
+    verified: f.verified || false,
+    distance: f.distance,
   });
 
   const mapBackendTicketToBooking = (t: any): Booking => ({
@@ -68,14 +100,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     facilityId: t.facility_id,
     slotId: t.slot_id,
     vehicleNumber: t.vehicle_number,
-    vehicleType: (t.vehicle_type?.toLowerCase() || 'car') as any as VehicleType,
+    vehicleType: parseVehicleType(t.vehicle_type),
     entryTime: t.entry_time,
     exitTime: t.exit_time,
     duration: t.duration || t.duration_hours || 0,
     amount: t.total_fee || t.amount || 0,
-    paymentMethod: (t.payment_method?.toLowerCase() || 'pay-at-exit') as any as PaymentMethod,
-    status: (t.status || 'active').toLowerCase() as any,
-    bookingType: (t.booking_type || 'ONLINE').toUpperCase(),
+    paymentMethod: parsePaymentMethod(t.payment_method),
+    status: parseBookingStatus(t.status),
+    bookingType: (t.booking_type || 'walk-in').toLowerCase() as any,
     qrCode: t.qr_code || t.id,
   });
 
@@ -99,7 +131,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           // Sync provider's own facilities to global state
           const providerFacilities = await providerService.getMyFacilities(); 
           const normalizedProviderFacilities = providerFacilities.map(mapBackendFacilityToFrontend);
-          setFacilities(normalizedProviderFacilities);
+          setMyFacilities(normalizedProviderFacilities);
 
           const providerBookings = await providerService.getBookings(); 
           setBookings(providerBookings.map(mapBackendTicketToBooking));
@@ -121,10 +153,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     loadInitialData();
   }, [loadInitialData]);
 
-  const login = async (email: string, password: string, role?: 'customer' | 'provider') => {
+  const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      console.log(`[v1.6] Attempting login: ${email} as ${role || 'unknown'}`);
+      console.log(`Attempting login: ${email}`);
       const response = await authService.login({ email, password });
       
       if (!response || !response.data) {
@@ -147,7 +179,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Reload data for the new user
       await loadInitialData();
     } catch (error: any) {
-      console.error('[v1.6] Login failed:', error);
+      console.error('Login failed:', error);
       toast.error(error.message || 'Login failed');
       throw error;
     } finally {
@@ -159,6 +191,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     authService.logout();
     setUser(null);
     setBookings([]);
+    setMyFacilities([]);
     // Optionally clear facilities if they are protected, but parking is usually public search
     toast.info('Logged out successfully');
   };
@@ -204,20 +237,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const cancelBooking = async (ticketId: string) => {
-    try {
-      await customerService.cancelBooking(ticketId);
-      setBookings(prev => prev.map(b => b.id === ticketId ? { ...b, status: 'cancelled' } : b));
-    } catch (error) {
-      throw error;
-    }
+    await customerService.cancelBooking(ticketId);
+    setBookings(prev => prev.map(b => b.id === ticketId ? { ...b, status: 'cancelled' } : b));
   };
 
   const createBooking = async (bookingData: Omit<Booking, 'id'>): Promise<Booking> => {
+    type BackendVehicleType = 'CAR' | 'BIKE' | 'TRUCK';
+    type BackendPaymentMethod = 'UPI' | 'CARD' | 'PAY_AT_EXIT';
+
     try {
-      const vehicleTypeMap: Record<string, string> = {
+      const vehicleTypeMap: Record<string, BackendVehicleType> = {
         'car': 'CAR', 'bike': 'BIKE', 'truck': 'TRUCK', 'scooter': 'BIKE'
       };
-      const paymentMethodMap: Record<string, any> = {
+      const paymentMethodMap: Record<string, BackendPaymentMethod> = {
         'upi': 'UPI', 'card': 'CARD', 'pay-at-exit': 'PAY_AT_EXIT', 'cash': 'PAY_AT_EXIT'
       };
 
@@ -227,17 +259,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const duration = bookingData.duration || 2;
       const endTime = bookingData.endTime || new Date(new Date(startTime).getTime() + duration * 60 * 60 * 1000).toISOString();
 
+      if (bookingData.amount === undefined || bookingData.amount === null) {
+        console.warn(`[AppContext] Booking amount is missing for slot ${bookingData.slotId}. User: ${user?.id}`);
+        throw new Error('Calculation Error: The booking amount could not be determined. Please try again.');
+      }
+
       const ticket = await customerService.confirmBooking({
         facility_id: bookingData.facilityId,
         slot_id: bookingData.slotId,
         vehicle_number: bookingData.vehicleNumber,
-        vehicle_type: (vehicleTypeMap[bookingData.vehicleType] || bookingData.vehicleType.toUpperCase()) as any,
+        vehicle_type: (vehicleTypeMap[bookingData.vehicleType] || bookingData.vehicleType.toUpperCase()) as BackendVehicleType,
         start_time: startTime,
         end_time: endTime,
         entry_time: bookingData.entryTime || entryDate.toISOString(),
         duration: duration,
-        payment_method: (paymentMethodMap[bookingData.paymentMethod] || bookingData.paymentMethod.toUpperCase()) as any,
-        amount: bookingData.amount || 0
+        payment_method: (paymentMethodMap[bookingData.paymentMethod] || bookingData.paymentMethod.toUpperCase()) as BackendPaymentMethod,
+        amount: bookingData.amount
       });
 
       // Map back ticket to Booking type to update local state
@@ -251,12 +288,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const createOfflineBooking = async (data: OfflineBookingData) => {
+    const ticket = await providerService.createOfflineBooking(data);
+    const newBooking = mapBackendTicketToBooking(ticket);
+    setBookings(prev => [newBooking, ...prev]);
+    return newBooking;
+  };
+
   const getBookingsByUser = (userId: string) => {
     return bookings.filter(b => b.customerId === userId);
   };
 
   const getFacilityById = (id: string) => {
-    return facilities.find(f => f.id === id);
+    let filtered = facilities.filter(f => f.isActive !== false);
+    return filtered.find(f => f.id === id);
   };
 
   const refreshData = async () => {
@@ -311,6 +356,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         isAuthenticated: !!user,
         isLoading,
         facilities,
+        myFacilities,
         slots,
         bookings,
         login,
@@ -319,12 +365,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateSlotStatus,
         createBooking,
         cancelBooking,
-        createOfflineBooking: async (data: any) => {
-          const ticket = await providerService.createOfflineBooking(data);
-          const newBooking = mapBackendTicketToBooking(ticket);
-          setBookings(prev => [newBooking, ...prev]);
-          return newBooking;
-        },
+        createOfflineBooking,
         getBookingsByUser,
         getFacilityById,
         refreshData,

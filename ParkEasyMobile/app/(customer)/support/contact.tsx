@@ -12,11 +12,27 @@ import { ProfessionalButton } from '../../../components/ui/ProfessionalButton';
 import { ProfessionalInput } from '../../../components/ui/ProfessionalInput';
 
 function withAlpha(color: string, opacity: number): string {
-  if (!color.startsWith('#')) return color;
-  const r = parseInt(color.slice(1, 3), 16);
-  const g = parseInt(color.slice(3, 5), 16);
-  const b = parseInt(color.slice(5, 7), 16);
-  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  // Validate hex format: #333 or #333333
+  const hexRegex = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+  if (!hexRegex.test(color)) return color;
+
+  let hex = color.slice(1);
+  // Normalize 3-digit hex to 6-digit
+  if (hex.length === 3) {
+    hex = hex.split('').map(char => char + char).join('');
+  }
+
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+
+  // Guard against NaN resulting from malformed substrings
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return color;
+
+  // Clamp opacity to [0, 1] range
+  const safeOpacity = Math.max(0, Math.min(1, opacity));
+
+  return `rgba(${r}, ${g}, ${b}, ${safeOpacity})`;
 }
 
 export default function ContactSupportScreen() {
@@ -26,6 +42,15 @@ export default function ContactSupportScreen() {
   const colors = useThemeColors();
   const haptics = useHaptics();
   const router = useRouter();
+
+  type SupportChannel = 'call' | 'wa' | 'mail';
+
+  interface Channel {
+    id: SupportChannel;
+    icon: React.ComponentProps<typeof Ionicons>['name'];
+    label: string;
+    color: string;
+  }
 
   const handleSend = () => {
     haptics.impactMedium();
@@ -41,14 +66,13 @@ export default function ContactSupportScreen() {
       haptics.notificationSuccess();
       Alert.alert('Inquiry Submitted', 'Your ticket has been prioritized. A support specialist will contact you within 2-4 hours.', [
         { text: 'Acknowledge', onPress: () => {
-          setMessage('');
           router.back();
         }}
       ]);
     }, 1500);
   };
 
-  const openChannel = async (type: 'call' | 'wa' | 'mail') => {
+  const openChannel = async (type: SupportChannel) => {
     haptics.impactLight();
     let url = '';
     if (type === 'call') url = 'tel:+919876543210';
@@ -104,15 +128,15 @@ export default function ContactSupportScreen() {
         </Animated.View>
 
         <Animated.View entering={FadeInUp.delay(300).duration(600)} style={styles.channelsGrid}>
-           {[
+           {([
              { id: 'call', icon: 'call-outline', label: 'Support Line', color: '#007AFF' },
              { id: 'wa', icon: 'logo-whatsapp', label: 'Live Chat', color: '#34C759' },
              { id: 'mail', icon: 'mail-outline', label: 'Email', color: '#FF9500' }
-           ].map((ch) => (
-             <TouchableOpacity key={ch.id} onPress={() => openChannel(ch.id as any)} activeOpacity={0.8} style={styles.channelItem}>
+           ] as Channel[]).map((ch) => (
+             <TouchableOpacity key={ch.id} onPress={() => openChannel(ch.id)} activeOpacity={0.8} style={styles.channelItem}>
                 <ProfessionalCard style={styles.channelCard} hasVibrancy={true}>
                    <View style={[styles.channelIconBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                      <Ionicons name={ch.icon as any} size={22} color={ch.color} />
+                      <Ionicons name={ch.icon} size={22} color={ch.color} />
                    </View>
                    <Text style={[styles.channelTitle, { color: colors.textPrimary }]}>{ch.label}</Text>
                 </ProfessionalCard>

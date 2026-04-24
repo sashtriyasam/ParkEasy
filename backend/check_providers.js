@@ -13,10 +13,16 @@ async function main() {
         }
     });
     console.log('Providers found:');
-    const sanitized = providers.map(p => ({
-        ...p,
-        email: p.email ? `${p.email.charAt(0)}***@${p.email.split('@')[1]}` : 'N/A'
-    }));
+    const sanitized = providers.map(p => {
+        const email = p.email || '';
+        const parts = email.split('@');
+        const domain = parts[1];
+        
+        return {
+            ...p,
+            email: (email && domain) ? `${email.charAt(0)}***@${domain}` : (email ? '***' : 'N/A')
+        };
+    });
     console.log(JSON.stringify(sanitized, null, 2));
 }
 

@@ -26,11 +26,20 @@ export const addAlpha = (color: string, opacity: number): string => {
     hex = hex.split('').map(char => char + char).join('');
   }
 
-  // Validate expanded hex length and characters to prevent NaN from parseInt
   const isValidHex = hex.length === 6 && /^[0-9A-Fa-f]{6}$/.test(hex);
-  const r = isValidHex ? parseInt(hex.substring(0, 2), 16) : 0;
-  const g = isValidHex ? parseInt(hex.substring(2, 4), 16) : 0;
-  const b = isValidHex ? parseInt(hex.substring(4, 6), 16) : 0;
+
+  if (!isValidHex) {
+    const errorMsg = `Invalid Hex color provided: "${color}". Expected format: #RGB or #RRGGBB.`;
+    if (process.env.NODE_ENV === 'development') {
+      throw new Error(errorMsg);
+    }
+    console.warn(`[ParkEasy Color Warning] ${errorMsg}`);
+    return color; // Return original color instead of turning transparent black
+  }
+
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
 
   return `rgba(${r}, ${g}, ${b}, ${clampedOpacity})`;
 };

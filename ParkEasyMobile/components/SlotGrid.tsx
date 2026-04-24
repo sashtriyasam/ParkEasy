@@ -39,13 +39,6 @@ const SlotItem: React.FC<{
   const colors = useThemeColors();
   const haptics = useHaptics();
   const pulse = useSharedValue(1);
-  const isSelectedSV = useSharedValue(isSelected);
-  const isHighlightedSV = useSharedValue(isHighlighted);
-
-  useEffect(() => {
-    isSelectedSV.value = isSelected;
-    isHighlightedSV.value = isHighlighted;
-  }, [isSelected, isHighlighted]);
 
   useEffect(() => {
     if (isSelected || isHighlighted) {
@@ -84,7 +77,7 @@ const SlotItem: React.FC<{
   return (
     <Animated.View
       entering={FadeInDown.delay(staggeredDelay).duration(ANIMATION_CONFIG.DURATION_MS)}
-      layout={Layout.springify()}
+      layout={Layout.duration(300)}
       style={[styles.itemWrapper, { width }]}
     >
       <TouchableOpacity
@@ -230,8 +223,8 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   legendText: {
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 1,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
 });

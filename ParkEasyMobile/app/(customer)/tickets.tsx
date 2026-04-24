@@ -6,11 +6,12 @@ import {
   ScrollView,
   RefreshControl,
   ActivityIndicator,
-  Dimensions,
   TouchableOpacity,
   Platform,
   StatusBar,
-  Alert
+  Alert,
+  useWindowDimensions,
+  FlatList,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,8 +27,9 @@ import { ProfessionalCard } from '../../components/ui/ProfessionalCard';
 import { ProfessionalButton } from '../../components/ui/ProfessionalButton';
 import { useThemeColors } from '../../hooks/useThemeColors';
 import { useHaptics } from '../../hooks/useHaptics';
+import { ErrorHandler } from '../../utils/ErrorHandler';
 
-const { width } = Dimensions.get('window');
+const TICKET_HEIGHT = 104; // styles.ticketCard height + marginBottom
 
 interface Booking {
   id: string;
@@ -42,6 +44,7 @@ interface Booking {
 }
 
 export default function TicketsScreen() {
+  const { width } = useWindowDimensions();
   const colors = useThemeColors();
   const haptics = useHaptics();
   
@@ -57,15 +60,20 @@ export default function TicketsScreen() {
 
   const fetchBookings = async (showLoading = true) => {
     if (showLoading) setLoading(true);
+    setError(null);
     try {
       const res = await get('/bookings/my');
       if (res.data?.data) {
         setBookings(res.data.data);
+        setError(null);
       }
     } catch (error: any) {
-      setError(error.message || 'Failed to load bookings');
+      const msg = error.message || 'Failed to load bookings';
+      setError(msg);
       if (showLoading) {
         Alert.alert('Connection Error', 'We couldn\'t load your digital tickets. Please pull down to refresh and try again.');
+      } else {
+        ErrorHandler.showToast('Sync Failed', msg, 'error');
       }
     } finally {
       setLoading(false);
@@ -83,6 +91,23 @@ export default function TicketsScreen() {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="small" color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (error && !refreshing && bookings.length === 0) {
+    return (
+      <View style={[styles.center, { backgroundColor: colors.background, padding: 32 }]}>
+        <Ionicons name="alert-circle-outline" size={64} color={colors.primary} />
+        <Text style={[styles.emptyText, { color: colors.textPrimary, textAlign: 'center' }]}>Update Failed</Text>
+        <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>{error}</Text>
+        <View style={{ width: '100%', marginTop: 32 }}>
+          <ProfessionalButton 
+            label="Retry Connection" 
+            onPress={() => fetchBookings()}
+            variant="primary"
+          />
+        </View>
       </View>
     );
   }
@@ -107,47 +132,54 @@ export default function TicketsScreen() {
         </BlurView>
       </Animated.View>
 
-      <ScrollView
+      <FlatList
+        data={bookings}
+        keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
-        }
-      >
-        {bookings.length > 0 ? (
-          bookings.map((booking, index) => (
-            <Animated.View 
-              key={booking.id} 
-              entering={FadeInRight.delay(index * 100).duration(600)}
-              layout={Layout.springify()}
-            >
-              <TicketItem 
-                booking={booking} 
-                onPress={() => {
-                   haptics.impactMedium();
-                   setSelectedTicket(booking);
-                }}
-                colors={colors}
-              />
-            </Animated.View>
-          ))
-        ) : (
+        onRefresh={onRefresh}
+        refreshing={refreshing}
+        renderItem={({ item: booking, index }) => (
+          <Animated.View 
+            entering={FadeInRight.delay(Math.min(index * 100, 500)).duration(600)}
+            layout={Layout.springify()}
+          >
+            <TicketItem 
+              booking={booking} 
+              onPress={() => {
+                 haptics.impactMedium();
+                 setSelectedTicket(booking);
+              }}
+              colors={colors}
+            />
+          </Animated.View>
+        )}
+        ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons name="ticket-outline" size={64} color={colors.textMuted} />
             <Text style={[styles.emptyText, { color: colors.textPrimary }]}>No Bookings Found</Text>
             <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>Your digital tickets and parking receipts will appear here once you make a booking.</Text>
           </View>
+        }
+        getItemLayout={(_, index) => (
+          { length: TICKET_HEIGHT, offset: TICKET_HEIGHT * index, index }
         )}
-      </ScrollView>
+      />
 
       {/* Wallet-Style Detailed Ticket View */}
       {selectedTicket && (
         <Animated.View entering={FadeInDown.duration(400)} style={StyleSheet.absoluteFill}>
            <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill}>
-              <TouchableOpacity style={styles.dismissOverlay} onPress={() => setSelectedTicket(null)} />
+              <TouchableOpacity 
+                style={styles.dismissOverlay} 
+                onPress={() => setSelectedTicket(null)} 
+                accessibilityLabel="Dismiss ticket details"
+                accessibilityHint="Closes the ticket detail view and returns to the list"
+                accessibilityRole="button"
+              />
               
               <View style={styles.overlayContent}>
-                 <ProfessionalCard style={styles.modalTicket} hasVibrancy={true}>
+                 <ProfessionalCard style={[styles.modalTicket, { width: width - 48 }]} hasVibrancy={true}>
                     <View style={styles.modalHeader}>
                        <View style={styles.modalHeaderInfo}>
                           <Text style={[styles.modalFacility, { color: colors.textPrimary }]}>{selectedTicket.facility.name}</Text>
@@ -175,8 +207,8 @@ export default function TicketsScreen() {
 
                     <View style={styles.detailsGrid}>
                        <DetailBlock label="VEHICLE" value={selectedTicket.vehicle_number} colors={colors} />
-                       <DetailBlock label="ENTRY TIME" value={new Date(selectedTicket.entry_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} colors={colors} />
-                       <DetailBlock label="BOOKED DATE" value={new Date(selectedTicket.entry_time).toLocaleDateString()} colors={colors} />
+                       <DetailBlock label="ENTRY TIME" value={new Date(selectedTicket.entry_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} colors={colors} />
+                       <DetailBlock label="BOOKED DATE" value={new Date(selectedTicket.entry_time).toLocaleDateString('en-IN')} colors={colors} />
                        <DetailBlock label="EST. COST" value={selectedTicket.total_fee ? `₹${selectedTicket.total_fee}` : '--'} colors={colors} />
                     </View>
 
@@ -194,7 +226,20 @@ export default function TicketsScreen() {
   );
 }
 
-function TicketItem({ booking, onPress, colors }: any) {
+interface TicketItemProps {
+  booking: Booking;
+  onPress: () => void;
+  colors: {
+    surface: string;
+    border: string;
+    primary: string;
+    textMuted: string;
+    textPrimary: string;
+    textSecondary: string;
+  };
+}
+
+function TicketItem({ booking, onPress, colors }: TicketItemProps) {
   const isActive = booking.status === 'ACTIVE';
   
   return (
@@ -212,7 +257,7 @@ function TicketItem({ booking, onPress, colors }: any) {
          <View style={styles.timeWrapper}>
             <Text style={[styles.timeLabel, { color: colors.textSecondary }]}>ENTRY</Text>
             <Text style={[styles.timeValue, { color: colors.textPrimary }]}>
-              {new Date(booking.entry_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              {new Date(booking.entry_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
             </Text>
          </View>
          <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
@@ -221,7 +266,16 @@ function TicketItem({ booking, onPress, colors }: any) {
   );
 }
 
-function DetailBlock({ label, value, colors }: any) {
+interface DetailBlockProps {
+  label: string;
+  value: string | number | React.ReactNode;
+  colors: {
+    textMuted: string;
+    textPrimary: string;
+  };
+}
+
+function DetailBlock({ label, value, colors }: DetailBlockProps) {
   return (
     <View style={styles.gridItem}>
        <Text style={[styles.gridLabel, { color: colors.textMuted }]}>{label}</Text>
@@ -262,13 +316,13 @@ const styles = StyleSheet.create({
   emptySubtext: { fontSize: 15, fontWeight: '600', textAlign: 'center', marginTop: 12, paddingHorizontal: 48, lineHeight: 22 },
   dismissOverlay: { ...StyleSheet.absoluteFillObject },
   overlayContent: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  modalTicket: { width: width - 48, borderRadius: 40, padding: 32 },
+  modalTicket: { borderRadius: 40, padding: 32 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 40 },
   modalHeaderInfo: { flex: 1, marginRight: 16 },
   modalFacility: { fontSize: 22, fontWeight: '900', letterSpacing: -0.5, marginBottom: 4 },
   modalAddress: { fontSize: 13, fontWeight: '600' },
   statusTag: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 14 },
-  statusTagText: { color: '#FFF', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  statusTagText: { fontSize: 10, fontWeight: '900', letterSpacing: 1 },
   qrSection: { alignItems: 'center', marginBottom: 40 },
   qrFrame: { padding: 20, borderWidth: 2, borderRadius: 32, marginBottom: 20 },
   qrHint: { fontSize: 10, fontWeight: '900', letterSpacing: 2, textAlign: 'center' },

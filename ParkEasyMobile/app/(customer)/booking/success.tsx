@@ -37,12 +37,14 @@ export default function BookingSuccessScreen() {
   const router = useRouter();
   const colors = useThemeColors();
   const haptics = useHaptics();
-  const { created_ticket_id, facility_name = 'City Center Parking', vehicle_number = 'MH-01-AB-1234', resetBookingFlow } = useBookingFlowStore();
+  const { created_ticket_id, facility_name, vehicle_number, resetBookingFlow } = useBookingFlowStore();
   const qrRef = useRef<View>(null);
 
   const [status, requestPermission] = MediaLibrary.usePermissions();
   const iconScale = useSharedValue(0);
 
+  // Only trigger animations and haptics once on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (status === null) {
       requestPermission();
@@ -55,11 +57,11 @@ export default function BookingSuccessScreen() {
     transform: [{ scale: iconScale.value }],
   }));
 
-  if (!created_ticket_id) {
+  if (!created_ticket_id || !facility_name || !vehicle_number) {
     return (
       <View style={[styles.centerError, { backgroundColor: colors.background }]}>
         <Ionicons name="alert-circle-outline" size={64} color={colors.primary} />
-        <Text style={[styles.errorText, { color: colors.textPrimary }]}>SESSION EXPIRED</Text>
+        <Text style={[styles.errorText, { color: colors.textPrimary }]}>DATA RECOVERY ERROR</Text>
         <ProfessionalButton label="Return to Home" onPress={() => router.replace('/(customer)/')} style={{marginTop: 32, width: 220}} />
       </View>
     );
@@ -175,6 +177,8 @@ export default function BookingSuccessScreen() {
            <TouchableOpacity 
               style={[styles.actionBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
               onPress={handleSave}
+              accessibilityLabel="Export pass"
+              accessibilityRole="button"
            >
               <Ionicons name="cloud-download-outline" size={20} color={colors.primary} />
               <Text style={[styles.actionText, { color: colors.textPrimary }]}>Export Pass</Text>
@@ -182,6 +186,8 @@ export default function BookingSuccessScreen() {
            <TouchableOpacity 
               style={[styles.actionBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
               onPress={handleShare}
+              accessibilityLabel="Broadcast pass"
+              accessibilityRole="button"
            >
               <Ionicons name="share-social-outline" size={20} color={colors.primary} />
               <Text style={[styles.actionText, { color: colors.textPrimary }]}>Broadcast</Text>
@@ -193,7 +199,7 @@ export default function BookingSuccessScreen() {
 
       <View style={[styles.bottomBar, { paddingBottom: Platform.OS === 'ios' ? 40 : 20, borderTopColor: colors.border }]}>
          <ProfessionalButton 
-            label="Dismiss and Audit Tickets" 
+            label="View My Tickets" 
             onPress={handleDone} 
             variant="primary"
          />

@@ -8,9 +8,7 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
-  StatusBar,
-  Dimensions
+  StatusBar
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -27,12 +25,11 @@ import { useHaptics } from '../../hooks/useHaptics';
 import { useToast } from '../../components/Toast';
 import { ParkingFacility, VehicleType } from '../../types';
 import { EmptyState } from '../../components/EmptyState';
-import { ProfessionalCard } from '../../components/ui/ProfessionalCard';
 import { BlurView } from 'expo-blur';
 
-const { width } = Dimensions.get('window');
-
 type SearchMode = 'NAME' | 'COORD';
+
+const INVALID_COORDINATES_ERROR = 'Invalid coordinates received from suggestion';
 
 const VEHICLE_FILTERS: { label: string; value: VehicleType; icon: any }[] = [
   { label: 'Bike', value: 'bike', icon: 'bicycle' },
@@ -75,6 +72,8 @@ export default function SearchScreen() {
       }
     } catch (e) {
       console.error('Search error', e);
+      haptics.notificationError();
+      showToast('Search failed — please try again', 'error');
     } finally {
       setLoading(false);
     }
@@ -100,11 +99,11 @@ export default function SearchScreen() {
     haptics.impactMedium();
     setLoading(true);
     try {
-      const lat = parseFloat(suggestion.lat as string);
-      const lon = parseFloat(suggestion.lon as string);
+      const lat = parseFloat(suggestion.lat);
+      const lon = parseFloat(suggestion.lon);
       
       if (isNaN(lat) || isNaN(lon)) {
-        throw new Error('Invalid coordinates received from suggestion');
+        throw new Error(INVALID_COORDINATES_ERROR);
       }
 
       const url = `/parking/search?lat=${lat}&lon=${lon}&limit=10`;
@@ -116,7 +115,7 @@ export default function SearchScreen() {
     } catch (e: any) {
       console.error('Suggestion fetch error', e);
       haptics.notificationError();
-      const errorMsg = e.message === 'Invalid coordinates received from suggestion' 
+      const errorMsg = e.message === INVALID_COORDINATES_ERROR 
         ? "Unable to find location — please try again"
         : "Failed to fetch parking data";
       showToast(errorMsg, 'error');
@@ -134,7 +133,7 @@ export default function SearchScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <Animated.View entering={SlideInUp.duration(600)} style={styles.header}>
-          <BlurView intensity={20} tint={colors.isDark ? 'dark' : 'light'} style={styles.headerBlur}>
+          <BlurView intensity={20} tint={colors.isDark ? 'dark' : 'light'} style={[styles.headerBlur, { borderBottomColor: colors.border }]}>
             <View style={styles.headerTop}>
               <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
                  <Ionicons name="chevron-back" size={28} color={colors.textPrimary} />
@@ -184,6 +183,7 @@ export default function SearchScreen() {
                   horizontal
                   showsHorizontalScrollIndicator={false}
                   data={VEHICLE_FILTERS}
+                  keyExtractor={(item) => item.value}
                   contentContainerStyle={styles.filterContent}
                   renderItem={({ item }) => {
                      const active = vehicleType === item.value;
@@ -251,7 +251,6 @@ export default function SearchScreen() {
                   facility={item}
                   distance={item.distance}
                   onPress={() => router.push(`/(customer)/facility/${item.id}`)}
-                  style={{ width: '100%', marginRight: 0 }}
                 />
               </Animated.View>
             )}
@@ -282,7 +281,6 @@ const styles = StyleSheet.create({
      paddingTop: Platform.OS === 'ios' ? 60 : 40,
      paddingBottom: 20,
      borderBottomWidth: 0.5,
-     borderColor: 'rgba(0,0,0,0.1)',
   },
   headerTop: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, marginBottom: 16 },
   backBtn: { width: 40, height: 40, justifyContent: 'center', marginLeft: -10 },

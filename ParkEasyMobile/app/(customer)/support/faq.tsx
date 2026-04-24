@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import Animated, { FadeInDown, SlideInUp } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useThemeColors } from '../../../hooks/useThemeColors';
 import { useHaptics } from '../../../hooks/useHaptics';
@@ -45,6 +46,7 @@ export default function FAQScreen() {
   const colors = useThemeColors();
   const haptics = useHaptics();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const toggleExpand = (id: string) => {
     haptics.impactLight();
@@ -57,9 +59,14 @@ export default function FAQScreen() {
       <StatusBar barStyle={colors.isDark ? 'light-content' : 'dark-content'} />
 
       <Animated.View entering={SlideInUp.duration(600)} style={styles.header}>
-        <BlurView intensity={20} tint={colors.isDark ? 'dark' : 'light'} style={styles.headerContent}>
+        <BlurView intensity={20} tint={colors.isDark ? 'dark' : 'light'} style={[styles.headerContent, { paddingTop: insets.top + 10 }]}>
           <View style={styles.headerTop}>
-            <TouchableOpacity style={styles.navBtn} onPress={() => router.back()}>
+            <TouchableOpacity 
+              style={styles.navBtn} 
+              onPress={() => router.back()}
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+            >
               <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
             </TouchableOpacity>
             
@@ -68,7 +75,12 @@ export default function FAQScreen() {
                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Help Center</Text>
             </View>
 
-            <TouchableOpacity style={styles.helpBtn} onPress={() => router.push('/(customer)/support/contact')}>
+            <TouchableOpacity 
+              style={styles.helpBtn} 
+              onPress={() => router.push('/(customer)/support/contact')}
+              accessibilityRole="button"
+              accessibilityLabel="Contact support"
+            >
                <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.primary} />
             </TouchableOpacity>
           </View>
@@ -92,6 +104,9 @@ export default function FAQScreen() {
                   key={id} 
                   onPress={() => toggleExpand(id)}
                   activeOpacity={0.9}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: isExpanded }}
+                  accessibilityHint={isExpanded ? "Collapse answer" : "Expand answer"}
                 >
                   <ProfessionalCard 
                     style={[styles.faqCard, isExpanded && { borderColor: applyAlpha(colors.primary, 0.25) }]} 
@@ -121,7 +136,7 @@ export default function FAQScreen() {
 
         <Animated.View entering={FadeInDown.delay(600).duration(600)}>
           <ProfessionalCard style={styles.contactCard} hasVibrancy={true}>
-            <View style={[styles.contactIconBox, { backgroundColor: colors.primary + '15' }]}>
+            <View style={[styles.contactIconBox, { backgroundColor: applyAlpha(colors.primary, 0.08) }]}>
               <Ionicons name="headset-outline" size={32} color={colors.primary} />
             </View>
             <Text style={[styles.contactTitle, { color: colors.textPrimary }]}>Still need assistance?</Text>
@@ -135,7 +150,7 @@ export default function FAQScreen() {
             />
           </ProfessionalCard>
         </Animated.View>
-        <View style={{ height: 40 }} />
+        <View style={styles.spacer} />
       </ScrollView>
     </View>
   );
@@ -145,7 +160,6 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { zIndex: 100 },
   headerContent: {
-    paddingTop: Platform.OS === 'ios' ? 70 : 50,
     paddingBottom: 20,
     borderBottomWidth: 0.5,
     borderColor: 'rgba(0,0,0,0.05)',
@@ -172,4 +186,5 @@ const styles = StyleSheet.create({
   contactIconBox: { width: 72, height: 72, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
   contactTitle: { fontSize: 20, fontWeight: '900', letterSpacing: -0.5, marginBottom: 8 },
   contactSub: { fontSize: 14, textAlign: 'center', lineHeight: 20, marginBottom: 28, fontWeight: '600' },
+  spacer: { height: 40 },
 });

@@ -6,10 +6,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Dimensions,
   StatusBar,
   TouchableOpacity,
   Alert,
+  useWindowDimensions,
 } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,9 +26,10 @@ import { ProfessionalCard } from '../../components/ui/ProfessionalCard';
 import { ProfessionalInput } from '../../components/ui/ProfessionalInput';
 import { ProfessionalButton } from '../../components/ui/ProfessionalButton';
 
-const { height } = Dimensions.get('window');
+
 
 export default function LoginScreen() {
+  const { height } = useWindowDimensions();
   const colors = useThemeColors();
   const haptics = useHaptics();
   const router = useRouter();
@@ -109,9 +110,22 @@ export default function LoginScreen() {
     } catch (e: any) {
       haptics.notificationError();
       let msg = 'AUTHENTICATION FAILED';
+      
       if (e.response) {
-        msg = e.response.data?.message || 'INVALID AUTHORIZATION';
+        const status = e.response.status;
+        if (status === 401 || status === 403) {
+          msg = 'INVALID CREDENTIALS';
+        } else if (status === 429) {
+          msg = 'TOO MANY ATTEMPTS. PLEASE TRY AGAIN LATER.';
+        } else if (status >= 500) {
+          msg = e.response.data?.message || 'SERVER ERROR - PLEASE RETRY LATER';
+        } else {
+          msg = e.response.data?.message || 'INVALID AUTHORIZATION';
+        }
+      } else if (e.request) {
+        msg = 'NETWORK ERROR - CHECK YOUR CONNECTION';
       }
+      
       showToast(msg, 'error');
     } finally {
       setIsSubmitting(false);
@@ -205,14 +219,33 @@ export default function LoginScreen() {
   );
 }
 
-const SocialButton = ({ icon, label, onPress, colors, disabled }: any) => (
+interface SocialButtonProps {
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  label: string;
+  onPress: () => void;
+  colors: {
+    isDark: boolean;
+    border: string;
+    textPrimary: string;
+  };
+  disabled?: boolean;
+}
+
+const SocialButton = ({ icon, label, onPress, colors, disabled }: SocialButtonProps) => (
   <TouchableOpacity 
     style={[styles.socialBtn, disabled && { opacity: 0.5 }]} 
     onPress={onPress} 
     activeOpacity={disabled ? 0.5 : 0.7}
     disabled={disabled}
+    accessibilityRole="button"
+    accessibilityState={{ disabled: !!disabled }}
+    accessibilityLabel={label}
   >
-    <BlurView intensity={10} tint={colors.isDark ? 'dark' : 'light'} style={[styles.socialBlur, { borderColor: colors.border, borderWidth: 1, borderRadius: 20 }]}>
+    <BlurView 
+      intensity={10} 
+      tint={colors.isDark ? 'dark' : 'light'} 
+      style={[styles.socialBlur, { borderColor: colors.border, borderWidth: 1, borderRadius: 20 }]}
+    >
       <Ionicons name={icon} size={18} color={colors.textPrimary} />
       <Text style={[styles.socialText, { color: colors.textPrimary }]}>{label}</Text>
     </BlurView>

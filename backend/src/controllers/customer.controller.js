@@ -2,6 +2,7 @@ const prisma = require('../config/db');
 const AppError = require('../utils/AppError');
 const asyncHandler = require('../utils/asyncHandler');
 const discoveryService = require('../services/discovery.service');
+const bookingService = require('../services/booking.service');
 const cache = require('../utils/cache');
 
 // --- DISCOVERY ---
@@ -226,19 +227,20 @@ const getCustomerStats = asyncHandler(async (req, res) => {
 });
 
 // --- SLOT AVAILABILITY (Time-based) ---
-const bookingService = require('../services/booking.service');
 
 const getSlotAvailability = asyncHandler(async (req, res) => {
     const { slotId } = req.params;
+
+    if (!slotId || typeof slotId !== 'string' || slotId.trim() === '') {
+        throw new AppError('A valid slotId parameter is required', 400);
+    }
+
     const { date } = req.query;
 
     const queryDate = date ? new Date(date) : new Date();
     
     if (isNaN(queryDate.getTime())) {
-        return res.status(400).json({
-            status: 'error',
-            message: 'Invalid date format provided'
-        });
+        throw new AppError('Invalid date format provided', 400);
     }
 
     const bookedWindows = await bookingService.getSlotAvailabilityForDay(slotId, queryDate);

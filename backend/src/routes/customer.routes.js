@@ -2,6 +2,7 @@ const express = require('express');
 const customerController = require('../controllers/customer.controller');
 const ticketController = require('../controllers/ticket.controller');
 const passController = require('../controllers/pass.controller');
+const bookingController = require('../controllers/booking.controller');
 const { protect, restrictTo } = require('../middleware/auth');
 
 const router = express.Router();
@@ -40,11 +41,13 @@ router.get('/tickets/:ticketId', restrictTo('CUSTOMER', 'ADMIN'), ticketControll
 router.post('/tickets/:ticketId/extend', restrictTo('CUSTOMER', 'ADMIN'), ticketController.extendTicket);
 
 // --- BOOKING FLOW (NEW) ---
-const bookingController = require('../controllers/booking.controller');
 router.post('/booking/confirm', restrictTo('CUSTOMER', 'ADMIN'), bookingController.createBookingWithPayment);
 router.post('/tickets/:ticketId/cancel', restrictTo('CUSTOMER', 'PROVIDER', 'ADMIN'), bookingController.cancelBooking);
+// Primary PDF download route.
+// The second route is a legacy alias for browser-friendly direct downloads (e.g. mobile WebView links
+// or older client integrations that expect a filename in the URL path). Both resolve to the same handler.
 router.get('/booking/:ticketId/pdf', restrictTo('CUSTOMER', 'ADMIN'), bookingController.downloadTicketPDF);
-router.get('/booking/:ticketId/invoice.pdf', restrictTo('CUSTOMER', 'ADMIN'), bookingController.downloadTicketPDF);
+router.get('/booking/:ticketId/invoice.pdf', restrictTo('CUSTOMER', 'ADMIN'), bookingController.downloadTicketPDF); // legacy alias
 
 // --- MONTHLY PASSES ---
 router.get('/passes/available', restrictTo('CUSTOMER', 'ADMIN'), passController.getAvailablePasses);

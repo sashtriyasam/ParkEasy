@@ -91,8 +91,10 @@ export function Signup() {
             <Input
               type="tel"
               placeholder="+91 98765 43210"
+              pattern="^\+?[1-9]\d{9,14}$"
+              title="Please enter a valid phone number with 10 to 15 digits (e.g. +919876543210 or 9876543210)"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => setPhone(e.target.value.replace(/[^+\d]/g, ''))}
               className="h-12 border-gray-300 text-lg"
               required
             />

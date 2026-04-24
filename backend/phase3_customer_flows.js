@@ -1,8 +1,21 @@
+require('dotenv').config();
 const axios = require('axios');
 
-const BASE_URL = 'https://parkeasy-backend-uy3x.onrender.com/api/v1';
-const CUSTOMER_EMAIL = 'customer@test.com';
-const CUSTOMER_PASS = 'customer123';
+const BASE_URL = process.env.API_URL || 'https://parkeasy-backend-uy3x.onrender.com/api/v1';
+const CUSTOMER_EMAIL = process.env.CUSTOMER_EMAIL;
+const CUSTOMER_PASS = process.env.CUSTOMER_PASSWORD;
+
+if (!CUSTOMER_EMAIL || !CUSTOMER_PASS) {
+    console.error('Infrastructure Failure: Missing required environment variables (CUSTOMER_EMAIL, CUSTOMER_PASSWORD).');
+    process.exit(1);
+}
+
+const TEST_VEHICLE_NUMBER = "MH04QA0001";
+
+const client = axios.create({
+  baseURL: BASE_URL,
+  timeout: 10000
+});
 
 async function testCustomerFlows() {
   console.log('--- PHASE 3: CUSTOMER API FLOWS ---');
@@ -10,7 +23,7 @@ async function testCustomerFlows() {
   // Login to get token (since previous one might have expired or wasn't saved to file)
   let token;
   try {
-    const login = await axios.post(`${BASE_URL}/auth/login`, {
+    const login = await client.post('/auth/login', {
       email: CUSTOMER_EMAIL,
       password: CUSTOMER_PASS
     });
@@ -26,8 +39,11 @@ async function testCustomerFlows() {
   // TEST 3A - Search Parking
   let facilityId;
   try {
-    const search = await axios.get(`${BASE_URL}/customer/search?latitude=19.0662&longitude=72.8659&radius=20`, { headers: authHeader });
+    const search = await client.get('/customer/search?latitude=19.2183&longitude=72.9781&radius=50', { headers: authHeader });
     const facilities = search.data.data;
+    if (!facilities || facilities.length === 0) {
+        throw new Error('Test Readiness Failure: No parking facilities found within search radius. Seed data required for Phase 3.');
+    }
     console.log('TEST 3A PASSED:', search.status, 'Facilities found:', facilities.length);
     facilities.forEach(f => console.log(`  - ID: ${f.id}, Name: ${f.name}`));
     facilityId = facilities[0].id;
@@ -39,7 +55,7 @@ async function testCustomerFlows() {
   // TEST 3B - Facility Details
   if (facilityId) {
     try {
-      const details = await axios.get(`${BASE_URL}/customer/facility/${facilityId}`, { headers: authHeader });
+      const details = await client.get(`/customer/facility/${facilityId}`, { headers: authHeader });
       console.log('TEST 3B PASSED:', details.status, 'Floors:', details.data.data.floors?.length);
       // console.log('Details:', JSON.stringify(details.data.data, null, 2));
     } catch (err) {
@@ -51,7 +67,7 @@ async function testCustomerFlows() {
   let slotId;
   if (facilityId) {
     try {
-      const slotsRes = await axios.get(`${BASE_URL}/customer/facility/${facilityId}/slots`, { headers: authHeader });
+      const slotsRes = await client.get(`/customer/facility/${facilityId}/slots`, { headers: authHeader });
       const floors = slotsRes.data.data;
       console.log('TEST 3C PASSED:', slotsRes.status, 'Floors with slots:', floors.length);
       
@@ -72,8 +88,8 @@ async function testCustomerFlows() {
   // TEST 3D - Add Vehicle
   let vehicleId;
   try {
-    const addVehicle = await axios.post(`${BASE_URL}/customer/vehicles`, {
-      vehicle_number: "MH04QA0001",
+    const addVehicle = await client.post('/customer/vehicles', {
+      vehicle_number: TEST_VEHICLE_NUMBER,
       vehicle_type: "CAR",
       nickname: "QA Car"
     }, { headers: authHeader });
@@ -87,7 +103,7 @@ async function testCustomerFlows() {
   let reservedSlotId;
   if (facilityId) {
     try {
-      const reserve = await axios.post(`${BASE_URL}/bookings/reserve`, {
+      const reserve = await client.post('/bookings/reserve', {
         facility_id: facilityId,
         vehicle_type: "CAR"
       }, { headers: authHeader });
@@ -102,10 +118,10 @@ async function testCustomerFlows() {
   let ticketId;
   if (facilityId && reservedSlotId) {
     try {
-      const booking = await axios.post(`${BASE_URL}/bookings`, {
+      const booking = await client.post('/bookings', {
         facility_id: facilityId,
         slot_id: reservedSlotId,
-        vehicle_number: "MH04QA0001",
+        vehicle_number: TEST_VEHICLE_NUMBER,
         vehicle_type: "CAR",
         payment_method: "upi",
         status: "PENDING"
@@ -119,7 +135,7 @@ async function testCustomerFlows() {
 
   // TEST 3G - Active Tickets
   try {
-    const active = await axios.get(`${BASE_URL}/customer/tickets/active`, { headers: authHeader });
+    const active = await client.get('/customer/tickets/active', { headers: authHeader });
     console.log('TEST 3G PASSED:', active.status, 'Active count:', active.data.data.length);
   } catch (err) {
     console.log('TEST 3G FAILED:', err.response?.status, err.response?.data?.message || err.message);
@@ -128,7 +144,7 @@ async function testCustomerFlows() {
   // TEST 3H - Ticket Detail
   if (ticketId) {
     try {
-      const ticket = await axios.get(`${BASE_URL}/customer/tickets/${ticketId}`, { headers: authHeader });
+      const ticket = await client.get(`/customer/tickets/${ticketId}`, { headers: authHeader });
       console.log('TEST 3H PASSED:', ticket.status, 'QR_CODE present:', !!ticket.data.data.qr_code);
     } catch (err) {
       console.log('TEST 3H FAILED:', err.response?.status, err.response?.data?.message || err.message);
@@ -138,7 +154,7 @@ async function testCustomerFlows() {
   // TEST 3I - Add Favorite
   if (facilityId) {
     try {
-      const fav = await axios.post(`${BASE_URL}/customer/favorites/${facilityId}`, {}, { headers: authHeader });
+      const fav = await client.post(`/customer/favorites/${facilityId}`, {}, { headers: authHeader });
       console.log('TEST 3I PASSED:', fav.status);
     } catch (err) {
       console.log('TEST 3I Potentially FAILED or Fav Exists:', err.response?.status, err.response?.data?.message || err.message);
@@ -147,16 +163,16 @@ async function testCustomerFlows() {
 
   // TEST 3J - Get Favorites
   try {
-    const favs = await axios.get(`${BASE_URL}/customer/favorites`, { headers: authHeader });
+    const favs = await client.get('/customer/favorites', { headers: authHeader });
     console.log('TEST 3J PASSED:', favs.status, 'Fav count:', favs.data.data.length);
   } catch (err) {
     console.log('TEST 3J FAILED:', err.response?.status, err.response?.data?.message || err.message);
   }
 
-  // TEST 3M - (Added for completeness) Delete Vehicle
+  // TEST 3K - Delete Vehicle
   if (vehicleId) {
     try {
-      const del = await axios.delete(`${BASE_URL}/customer/vehicles/${vehicleId}`, { headers: authHeader });
+      const del = await client.delete(`/customer/vehicles/${vehicleId}`, { headers: authHeader });
       console.log('TEST 3K PASSED:', del.status);
     } catch (err) {
       console.log('TEST 3K FAILED:', err.response?.status, err.response?.data?.message || err.message);
@@ -165,10 +181,30 @@ async function testCustomerFlows() {
 
   // TEST 3L - Active Passes
   try {
-    const passes = await axios.get(`${BASE_URL}/customer/passes/active`, { headers: authHeader });
+    const passes = await client.get('/customer/passes/active', { headers: authHeader });
     console.log('TEST 3L PASSED:', passes.status);
   } catch (err) {
     console.log('TEST 3L FAILED:', err.response?.status, err.response?.data?.message || err.message);
+  }
+
+  // --- CLEANUP ---
+  console.log('--- CLEANUP ---');
+  if (ticketId) {
+    try {
+      await client.delete(`/bookings/${ticketId}`, { headers: authHeader });
+      console.log('CLEANUP: Booking deleted');
+    } catch (err) {
+      console.log('CLEANUP: Failed to delete booking', err.message);
+    }
+  }
+
+  if (facilityId) {
+    try {
+      await client.delete(`/customer/favorites/${facilityId}`, { headers: authHeader });
+      console.log('CLEANUP: Favorite removed');
+    } catch (err) {
+      console.log('CLEANUP: Failed to remove favorite', err.message);
+    }
   }
 }
 

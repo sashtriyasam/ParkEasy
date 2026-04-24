@@ -148,16 +148,31 @@ export default function AddFacility() {
 
   const handleSubmit = async () => {
     haptics.impactMedium();
+    
+    const lat = parseFloat(formData.latitude);
+    const lon = parseFloat(formData.longitude);
+    const slots = parseInt(formData.total_slots, 10);
+
+    if (isNaN(lat) || isNaN(lon)) {
+      showToast('Please verify location on map.', 'error');
+      return;
+    }
+
+    if (isNaN(slots) || slots <= 0) {
+      showToast('Total slots must be a positive number.', 'error');
+      return;
+    }
+
     setLoading(true);
     try {
       const payload = {
         name: formData.name,
         address: formData.address,
         city: formData.city,
-        latitude: parseFloat(formData.latitude),
-        longitude: parseFloat(formData.longitude),
+        latitude: lat,
+        longitude: lon,
         total_floors: 1,
-        total_slots: parseInt(formData.total_slots, 10),
+        total_slots: slots,
         operating_hours: formData.operating_hours,
         description: formData.description,
         is_active: true,
@@ -338,7 +353,7 @@ export default function AddFacility() {
                 <Text style={[styles.backBtnTxt, { color: colors.textSecondary }]}>Previous</Text>
              </TouchableOpacity>
            )}
-           <View style={{ flex: currentStep === 1 ? 0 : 1, width: currentStep === 1 ? 0 : 16 }} />
+           {currentStep > 1 && <View style={{ width: 16 }} />}
            <ProfessionalButton
               label={currentStep === 3 ? "Launch Facility" : "Continue"}
               onPress={currentStep < 3 ? nextStep : handleSubmit}
@@ -372,8 +387,8 @@ export default function AddFacility() {
                    >
                      <Marker
                        coordinate={{
-                         latitude: parseFloat(formData.latitude) || 18.5204,
-                         longitude: parseFloat(formData.longitude) || 73.8567
+                         latitude: Number.isFinite(parseFloat(formData.latitude)) ? parseFloat(formData.latitude) : 18.5204,
+                         longitude: Number.isFinite(parseFloat(formData.longitude)) ? parseFloat(formData.longitude) : 73.8567
                        }}
                        draggable
                        onDragEnd={handleMapConfirm}

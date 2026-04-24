@@ -57,7 +57,11 @@ async function testAuth() {
     });
     console.log('TEST 2D FAILED (Expected 400, got 201/200):', badReg.status);
   } catch (error) {
-    console.log('TEST 2D PASSED (Validation Guard): 400', error.response?.status, error.response?.data?.message || error.message);
+    if (error.response?.status === 400) {
+      console.log('TEST 2D PASSED (Validation Guard): 400');
+    } else {
+      console.log('TEST 2D FAILED: unexpected status', error.response?.status, error.response?.data?.message || error.message);
+    }
   }
 
   // TEST 2E - Get Me
@@ -85,4 +89,7 @@ async function testAuth() {
   }
 }
 
-testAuth();
+testAuth().catch(err => {
+  console.error('FATAL TEST ERROR:', err.message);
+  process.exit(1);
+});

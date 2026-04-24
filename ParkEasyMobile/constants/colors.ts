@@ -80,13 +80,13 @@ export const VEHICLE_TYPE_COLORS = {
   scooter: colors.primary,
   car: colors.warning,
   truck: colors.secondary,
-};
+} as const;
 
 export const SLOT_STATUS_COLORS = {
   free: colors.success,
   occupied: colors.error,
   reserved: colors.warning,
   maintenance: '#6B7280',
-};
+} as const;
 
 

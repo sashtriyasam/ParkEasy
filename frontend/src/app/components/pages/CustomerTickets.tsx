@@ -95,9 +95,9 @@ export function CustomerTickets() {
       setActiveTickets(prev => prev.filter(t => t.id !== ticketId));
       
       toast.success('Booking cancelled successfully');
-      loadTickets();
     } catch (error: any) {
       toast.error('Error canceling booking');
+      loadTickets();
     } finally {
       setIsLoading(false);
       setTicketToCancel(null);
@@ -122,15 +122,29 @@ export function CustomerTickets() {
 
       if (!response.ok) throw new Error('Failed to download invoice');
 
+      // Validate Content-Type to ensure we actually received a PDF
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.toLowerCase().startsWith('application/pdf')) {
+        throw new Error('Server returned invalid file format');
+      }
+
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
+      a.style.display = 'none';
       a.href = url;
       a.download = `parkeasy-invoice-${ticketId.slice(0, 8)}.pdf`;
+      
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      
+      // Defer revocation to allow the browser time to initiate the download handoff
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+        if (document.body.contains(a)) {
+          document.body.removeChild(a);
+        }
+      }, 500);
 
       toast.success('Invoice downloaded successfully');
     } catch (error: any) {
@@ -140,7 +154,7 @@ export function CustomerTickets() {
   };
 
   const navigateToFacility = (ticket: Ticket) => {
-    const facility = getFacilityById(ticket.facility_id) || (ticket as any).facility;
+    const facility = getFacilityById(ticket.facility_id) || ticket.facility;
     const lat = facility?.latitude;
     const lng = facility?.longitude;
     if (lat && lng) {
@@ -235,13 +249,13 @@ export function CustomerTickets() {
                       </div>
 
                     {/* Time Window Display */}
-                    {(ticket as any).exit_time && (
+                    {ticket.exit_time && (
                       <div className="flex items-center gap-2 mb-4 bg-indigo-50 rounded-xl px-4 py-3">
                         <Clock className="w-4 h-4 text-indigo-600 shrink-0" />
                         <span className="text-sm font-bold text-indigo-700">
                           {format(new Date(ticket.entry_time), 'hh:mm a')}
                           {' → '}
-                          {format(new Date((ticket as any).exit_time), 'hh:mm a')}
+                          {format(new Date(ticket.exit_time), 'hh:mm a')}
                         </span>
                         <span className="text-xs text-indigo-500 ml-auto">
                           {format(new Date(ticket.entry_time), 'MMM dd')}

@@ -45,28 +45,26 @@ const getDashboardStats = async (providerId) => {
     ]);
 
     // 3. Active Bookings Breakdown
-    const [activeBookings, onlineBookings, offlineBookings] = await Promise.all([
-        prisma.ticket.count({
-            where: {
-                slot: { floor: { facility_id: { in: facilityIds } } },
-                status: 'ACTIVE'
-            }
-        }),
-        prisma.ticket.count({
-            where: {
-                slot: { floor: { facility_id: { in: facilityIds } } },
-                status: 'ACTIVE',
-                booking_type: 'ONLINE'
-            }
-        }),
-        prisma.ticket.count({
-            where: {
-                slot: { floor: { facility_id: { in: facilityIds } } },
-                status: 'ACTIVE',
-                booking_type: 'OFFLINE'
-            }
-        })
-    ]);
+    const typeGroups = await prisma.ticket.groupBy({
+        by: ['booking_type'],
+        where: {
+            slot: { floor: { facility_id: { in: facilityIds } } },
+            status: 'ACTIVE'
+        },
+        _count: {
+            _all: true
+        }
+    });
+
+    let onlineBookings = 0;
+    let offlineBookings = 0;
+
+    typeGroups.forEach(group => {
+        if (group.booking_type === 'ONLINE') onlineBookings = group._count._all;
+        if (group.booking_type === 'OFFLINE') offlineBookings = group._count._all;
+    });
+
+    const activeBookings = onlineBookings + offlineBookings;
 
     // 4. Occupancy Rate
     // Total Slots

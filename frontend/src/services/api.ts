@@ -12,6 +12,18 @@ const apiClient: AxiosInstance = axios.create({
     timeout: 10000,
 });
 
+const isAuthPage = () => {
+    const path = window.location.pathname;
+    return path === '/login' || path === '/welcome' || path === '/signup' || path === '/';
+};
+
+const normalizeApiError = (error: any) => {
+    return {
+        message: error?.response?.data?.message || error?.message || 'An error occurred',
+        statusCode: error?.response?.status || 500,
+    };
+};
+
 // Request interceptor - Add auth token
 apiClient.interceptors.request.use(
     (config: InternalAxiosRequestConfig) => {
@@ -55,38 +67,26 @@ apiClient.interceptors.response.use(
                     localStorage.removeItem('accessToken');
                     localStorage.removeItem('refreshToken');
                     localStorage.removeItem('user');
-                    const isAuthPage = window.location.pathname === '/login' || 
-                                     window.location.pathname === '/welcome' || 
-                                     window.location.pathname === '/signup' ||
-                                     window.location.pathname === '/';
                     
-                    if (!isAuthPage) {
+                    if (!isAuthPage()) {
                         window.location.href = '/login';
                     }
-                    return Promise.reject(refreshError);
+                    return Promise.reject(normalizeApiError(refreshError));
                 }
             } else {
                 // No refresh token, logout
                 localStorage.removeItem('accessToken');
                 localStorage.removeItem('refreshToken');
                 localStorage.removeItem('user');
-                const isAuthPage = window.location.pathname === '/login' || 
-                                 window.location.pathname === '/welcome' || 
-                                 window.location.pathname === '/signup' ||
-                                 window.location.pathname === '/';
                 
-                if (!isAuthPage) {
+                if (!isAuthPage()) {
                     window.location.href = '/login';
                 }
-                return Promise.reject(error);
+                return Promise.reject(normalizeApiError(error));
             }
         }
 
-        const errorMessage = error.response?.data?.message || error.message || 'An error occurred';
-        return Promise.reject({
-            message: errorMessage,
-            statusCode: error.response?.status || 500,
-        });
+        return Promise.reject(normalizeApiError(error));
     }
 );
 

@@ -30,7 +30,6 @@ import { useHaptics } from '../hooks/useHaptics';
 import { ProfessionalCard } from './ui/ProfessionalCard';
 import { Skeleton } from './ui/SkeletonLoader';
 
-const { width } = Dimensions.get('window');
 
 interface ProviderStats {
   revenue?: {
@@ -58,6 +57,7 @@ export function ProfileScreen() {
   const haptics = useHaptics();
   const { theme, setTheme } = useThemeStore();
   const { user, logout } = useAuthStore();
+  const { showToast } = useToast();
   const userName = user?.full_name || 'GUEST USER';
   const role = user?.role?.toUpperCase() || 'USER';
   const isProvider = role === 'PROVIDER';
@@ -96,14 +96,14 @@ export function ProfileScreen() {
   };
 
   const handleLogout = async () => {
-    haptics.impactMedium();
+    haptics.impactLight();
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel' },
       { 
         text: 'Sign Out', 
         style: 'destructive',
         onPress: async () => {
-          haptics.notificationSuccess();
+          haptics.impactLight();
           await logout();
           router.replace('/(auth)/login');
         }
@@ -187,8 +187,11 @@ export function ProfileScreen() {
             />
             <TouchableOpacity 
               style={[styles.cameraBtn, { borderColor: colors.border }]} 
-              activeOpacity={0.8}
-              onPress={() => haptics.impactLight()}
+              activeOpacity={0.7}
+              onPress={() => {
+                haptics.impactLight();
+                showToast('Camera functionality coming soon', 'info');
+              }}
             >
               <BlurView intensity={30} tint={colors.isDark ? 'dark' : 'light'} style={styles.cameraBtnBlur}>
                 <Ionicons name="camera" size={14} color={colors.textPrimary} />
@@ -276,7 +279,6 @@ export function ProfileScreen() {
               icon="notifications" 
               label="System Alerts" 
               isLast
-              onPress={() => haptics.impactLight()}
               colors={colors}
             />
           </SettingsSection>
@@ -294,7 +296,6 @@ export function ProfileScreen() {
               label="Region" 
               value="India" 
               isLast
-              onPress={() => haptics.impactLight()}
               colors={colors}
             />
           </SettingsSection>
@@ -303,20 +304,25 @@ export function ProfileScreen() {
             <SettingsOption 
               icon="help-buoy" 
               label="Help Center & FAQ" 
-              onPress={() => router.push('/(customer)/support/faq')} 
+              onPress={() => {
+                haptics.impactMedium();
+                router.push('/(customer)/support/faq');
+              }} 
               colors={colors} 
             />
             <SettingsOption 
               icon="chatbubbles" 
               label="Contact Support" 
-              onPress={() => router.push('/(customer)/support/contact')} 
+              onPress={() => {
+                haptics.impactMedium();
+                router.push('/(customer)/support/contact');
+              }} 
               colors={colors} 
             />
             <SettingsOption 
               icon="document-text" 
               label="Terms & Privacy" 
               isLast 
-              onPress={() => haptics.impactLight()}
               colors={colors} 
             />
           </SettingsSection>
@@ -352,12 +358,12 @@ function SettingsSection({ title, children, colors }: any) {
 }
 
 function SettingsOption({ icon, label, onPress, isLast, value, colors }: any) {
-  return (
-    <TouchableOpacity 
-      style={[styles.menuRow, !isLast && { borderBottomWidth: 1, borderBottomColor: colors.border + '15' }]} 
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
+  const content = (
+    <View style={[
+      styles.menuRow, 
+      !isLast && { borderBottomWidth: 1, borderBottomColor: colors.border + '15' },
+      !onPress && { opacity: 0.5 }
+    ]}>
       <View style={styles.menuLeft}>
         <View style={[styles.iconInnerBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Ionicons name={icon} size={18} color={colors.textSecondary} />
@@ -366,8 +372,19 @@ function SettingsOption({ icon, label, onPress, isLast, value, colors }: any) {
       </View>
       <View style={styles.menuRight}>
         {value && <Text style={[styles.valueTag, { color: colors.primary }]}>{value}</Text>}
-        <Ionicons name="chevron-forward" size={14} color={colors.textMuted} />
+        {onPress && <Ionicons name="chevron-forward" size={14} color={colors.textMuted} />}
       </View>
+    </View>
+  );
+
+  if (!onPress) return content;
+
+  return (
+    <TouchableOpacity 
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      {content}
     </TouchableOpacity>
   );
 }

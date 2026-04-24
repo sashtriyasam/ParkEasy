@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   Dimensions,
   Platform,
-  ActivityIndicator,
   StatusBar
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -75,7 +74,7 @@ export default function ProviderFacilities() {
     fetchFacilities(false);
   };
 
-  const renderFacility = ({ item, index }: { item: ParkingFacility; index: number }) => {
+  const renderFacility = useCallback(({ item, index }: { item: ParkingFacility; index: number }) => {
     const isVerified = item.verified;
     
     return (
@@ -109,18 +108,18 @@ export default function ProviderFacilities() {
               ]}>
                 <View style={[styles.statusDot, { backgroundColor: isVerified ? colors.success : colors.warning }]} />
                 <Text style={[styles.statusText, { color: isVerified ? colors.success : colors.warning }]}>
-                  {isVerified ? 'ACTIVE' : 'PENDING'}
+                  {isVerified ? 'Active' : 'Pending'}
                 </Text>
               </View>
             </View>
 
             <View style={styles.metricsContainer}>
               <View style={[styles.metricCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <Text style={[styles.metricLabel, { color: colors.textMuted }]}>CAPACITY</Text>
-                <Text style={[styles.metricValue, { color: colors.textPrimary }]}>{item.total_slots || 0} SLOTS</Text>
+                <Text style={[styles.metricLabel, { color: colors.textMuted }]}>Capacity</Text>
+                <Text style={[styles.metricValue, { color: colors.textPrimary }]}>{item.total_slots || 0} Slots</Text>
               </View>
               <View style={[styles.metricCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <Text style={[styles.metricLabel, { color: colors.textMuted }]}>PRICING</Text>
+                <Text style={[styles.metricLabel, { color: colors.textMuted }]}>Pricing</Text>
                 <Text style={[styles.metricValue, { color: colors.textPrimary }]}>₹{item.price_per_hour ?? 0}/hr</Text>
               </View>
             </View>
@@ -134,7 +133,7 @@ export default function ProviderFacilities() {
                 }}
               >
                 <Ionicons name="receipt-outline" size={18} color={colors.primary} />
-                <Text style={[styles.cardActionText, { color: colors.textPrimary }]}>ACTIVITY</Text>
+                <Text style={[styles.cardActionText, { color: colors.textPrimary }]}>Activity</Text>
               </TouchableOpacity>
               <View style={[styles.actionDivider, { backgroundColor: colors.border }]} />
               <TouchableOpacity
@@ -145,14 +144,14 @@ export default function ProviderFacilities() {
                 }}
               >
                 <Ionicons name="settings-outline" size={18} color={colors.primary} />
-                <Text style={[styles.cardActionText, { color: colors.textPrimary }]}>SETTINGS</Text>
+                <Text style={[styles.cardActionText, { color: colors.textPrimary }]}>Settings</Text>
               </TouchableOpacity>
             </View>
           </BlurView>
         </TouchableOpacity>
       </Animated.View>
     );
-  };
+  }, [colors, haptics, router]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -219,7 +218,7 @@ export default function ProviderFacilities() {
           data={facilities}
           keyExtractor={(item) => item.id}
           renderItem={renderFacility}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { flexGrow: 1 }]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
@@ -363,6 +362,7 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '900',
     letterSpacing: 1,
+    textTransform: 'uppercase',
   },
   metricsContainer: {
     flexDirection: 'row',
@@ -381,6 +381,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: 1.5,
     marginBottom: 6,
+    textTransform: 'uppercase',
   },
   metricValue: {
     fontSize: 15,
@@ -402,6 +403,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '900',
     letterSpacing: 1.5,
+    textTransform: 'uppercase',
   },
   actionDivider: {
     width: 1,

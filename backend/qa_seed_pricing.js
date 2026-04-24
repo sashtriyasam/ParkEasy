@@ -1,6 +1,12 @@
 import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
+const getPricingRules = (facilityId) => [
+  { facility_id: facilityId, vehicle_type: 'CAR', hourly_rate: 60, daily_max: 500, monthly_pass_price: 3000 },
+  { facility_id: facilityId, vehicle_type: 'BIKE', hourly_rate: 30, daily_max: 250, monthly_pass_price: 1500 },
+  { facility_id: facilityId, vehicle_type: 'TRUCK', hourly_rate: 100, daily_max: 800, monthly_pass_price: 5000 },
+];
+
 async function main() {
   // Check pricing rules for the target facility
   const facilityId = 'a04cba03-5688-4441-a746-4b62e70a3d83';
@@ -16,11 +22,7 @@ async function main() {
   if (!facility?.pricing_rules?.length) {
     console.log('No pricing rules found. Creating them...');
     await prisma.pricingRule.createMany({
-      data: [
-        { facility_id: facilityId, vehicle_type: 'CAR', hourly_rate: 60, daily_max: 500, monthly_pass_price: 3000 },
-        { facility_id: facilityId, vehicle_type: 'BIKE', hourly_rate: 30, daily_max: 250, monthly_pass_price: 1500 },
-        { facility_id: facilityId, vehicle_type: 'TRUCK', hourly_rate: 100, daily_max: 800, monthly_pass_price: 5000 },
-      ],
+      data: getPricingRules(facilityId),
       skipDuplicates: true,
     });
     console.log('✅ Pricing rules created!');
@@ -36,11 +38,7 @@ async function main() {
     const existing = await prisma.pricingRule.count({ where: { facility_id: g.id } });
     if (existing === 0) {
       await prisma.pricingRule.createMany({
-        data: [
-          { facility_id: g.id, vehicle_type: 'CAR', hourly_rate: 60, daily_max: 500, monthly_pass_price: 3000 },
-          { facility_id: g.id, vehicle_type: 'BIKE', hourly_rate: 30, daily_max: 250, monthly_pass_price: 1500 },
-          { facility_id: g.id, vehicle_type: 'TRUCK', hourly_rate: 100, daily_max: 800, monthly_pass_price: 5000 },
-        ],
+        data: getPricingRules(g.id),
         skipDuplicates: true,
       });
       console.log(`✅ Pricing rules seeded for ${g.name}`);

@@ -12,7 +12,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 5000
+        value: "5000"
       - key: DATABASE_URL
         sync: false # Transaction Pooler URL (6543)
       - key: DIRECT_URL
@@ -29,9 +29,8 @@ services:
   # 2. Frontend Static Site (Vite/React)
   - type: static
     name: parkeasy-frontend
-    env: static
     rootDir: frontend
-    buildCommand: "npm install --legacy-peer-deps && npm run build"
+    buildCommand: "npm install && npm run build"
     publishDir: dist
     routes:
       # Support SPA Client-Side Routing

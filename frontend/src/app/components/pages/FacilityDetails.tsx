@@ -12,6 +12,17 @@ import { mockPricing, mockReviews } from '@/data/mockData';
 import type { VehicleType } from '@/types';
 import { toast } from 'sonner';
 
+interface NormalizedSlot {
+  id: string;
+  floorName: string;
+  status: string;
+  vehicleType: VehicleType;
+  pricePerHour: number;
+  label?: string;
+  [key: string]: any;
+}
+
+
 export function FacilityDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -24,7 +35,7 @@ export function FacilityDetails() {
   const [selectedFloor, setSelectedFloor] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [selectedVehicleType, setSelectedVehicleType] = useState<VehicleType>('car');
-  const [facilitySlots, setFacilitySlots] = useState<any[]>([]);
+  const [facilitySlots, setFacilitySlots] = useState<NormalizedSlot[]>([]);
   const [floorNames, setFloorNames] = useState<string[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(true);
 
@@ -41,18 +52,21 @@ export function FacilityDetails() {
         setFloorNames(names);
         if (names.length > 0) setSelectedFloor(names[0]); // default to first floor
 
-        const allSlots: any[] = [];
+        const allSlots: NormalizedSlot[] = [];
         names.forEach(floorName => {
           const floorSlots = slotsDataSafe[floorName];
           if (Array.isArray(floorSlots)) {
             floorSlots.forEach(slot => {
+              if (slot.price_per_hour === null || slot.price_per_hour === undefined) {
+                console.warn(`[FacilityDetails] Missing pricing for slot ${slot.id} in facility ${id}. Falling back to 20.`);
+              }
               allSlots.push({
                 ...slot,
                 floorName,
                 // Normalize fields for frontend
                 status: (slot.status || 'free').toLowerCase(),
-                vehicleType: (slot.vehicle_type || 'car').toLowerCase(),
-                pricePerHour: slot.price_per_hour || 20
+                vehicleType: (slot.vehicle_type || 'car').toLowerCase() as VehicleType,
+                pricePerHour: slot.price_per_hour ?? 20
               });
             });
           }

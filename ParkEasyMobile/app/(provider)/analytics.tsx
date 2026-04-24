@@ -17,7 +17,6 @@ import { useRouter } from 'expo-router';
 import Animated, { FadeInUp, FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { get } from '../../services/api';
 import { useThemeColors } from '../../hooks/useThemeColors';
-import { useHaptics } from '../../hooks/useHaptics';
 import { ProfessionalCard } from '../../components/ui/ProfessionalCard';
 
 const { width } = Dimensions.get('window');
@@ -39,7 +38,6 @@ interface AnalyticsData {
 export default function AnalyticsScreen() {
   const router = useRouter();
   const colors = useThemeColors();
-  const haptics = useHaptics();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [isLive, setIsLive] = useState(false);
@@ -118,7 +116,7 @@ export default function AnalyticsScreen() {
       <StatusBar barStyle={colors.isDark ? 'light-content' : 'dark-content'} />
       
       <Animated.View entering={FadeInDown.duration(600)} style={styles.header}>
-         <BlurView intensity={20} tint={colors.isDark ? 'dark' : 'light'} style={styles.headerContent}>
+         <BlurView intensity={20} tint={colors.isDark ? 'dark' : 'light'} style={[styles.headerContent, { borderColor: colors.border }]}>
             <View style={styles.headerTop}>
                <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
                   <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
@@ -186,7 +184,9 @@ export default function AnalyticsScreen() {
               <BarChart
                 data={{
                   labels: ["00:00", "04:00", "08:00", "12:00", "16:00", "20:00", "23:59"],
-                  datasets: [{ data: Array.isArray(data?.occupancy) ? data.occupancy.slice(0, 7) : [0,0,0,0,0,0,0] }]
+                  datasets: [{ 
+                    data: (Array.isArray(data?.occupancy) ? data.occupancy.slice(0, 7) : []).concat(new Array(7).fill(0)).slice(0, 7) 
+                  }]
                 }}
                 width={width - 80}
                 height={160}
@@ -234,7 +234,6 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 70 : 50,
     paddingBottom: 20,
     borderBottomWidth: 0.5,
-    borderColor: 'rgba(0,0,0,0.05)',
   },
   headerTop: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, gap: 16 },
   backBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },

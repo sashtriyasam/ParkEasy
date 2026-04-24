@@ -7,17 +7,12 @@ import {
   TouchableOpacity, 
   Alert, 
   Platform,
-  StatusBar,
-  Dimensions,
-  ActivityIndicator
+  StatusBar
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import Animated, { 
-  FadeInDown, 
-  FadeIn, 
-  SlideInUp, 
-  Layout 
+  FadeInDown
 } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 
@@ -26,8 +21,7 @@ import { useHaptics } from '../../hooks/useHaptics';
 import { useToast } from '../../components/Toast';
 import { ProfessionalCard } from '../../components/ui/ProfessionalCard';
 import { ProfessionalButton } from '../../components/ui/ProfessionalButton';
-
-const { width } = Dimensions.get('window');
+import { applyAlpha } from '../../utils/colorUtils';
 
 interface PaymentMethod {
   id: string;
@@ -53,6 +47,12 @@ export default function PaymentsScreen() {
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>(PAYMENT_METHODS);
 
   const handleDelete = (id: string) => {
+    const method = paymentMethods.find(m => m.id === id);
+    if (method?.isDefault || paymentMethods.length === 1) {
+      showToast('Cannot remove default or only payment method', 'error');
+      return;
+    }
+    
     haptics.impactMedium();
     Alert.alert('Remove Method', 'Are you sure you want to remove this payment method from your account?', [
       { text: 'Cancel', style: 'cancel' },
@@ -86,7 +86,7 @@ export default function PaymentsScreen() {
                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Wallet & Cards</Text>
             </View>
 
-            <View style={[styles.secureBadge, { backgroundColor: colors.success + '15', borderColor: colors.success + '30' }]}>
+            <View style={[styles.secureBadge, { backgroundColor: applyAlpha(colors.success, 0.15), borderColor: applyAlpha(colors.success, 0.3) }]}>
                <Ionicons name="shield-checkmark" size={14} color={colors.success} />
                <Text style={[styles.secureText, { color: colors.success }]}>SECURE</Text>
             </View>
@@ -106,7 +106,7 @@ export default function PaymentsScreen() {
                    <Text style={[styles.balanceSub, { color: colors.textMuted }]}>AVAILABLE CREDITS</Text>
                    <Text style={[styles.balanceValue, { color: colors.textPrimary }]}>₹420.00</Text>
                 </View>
-                <View style={[styles.tokenIconBox, { backgroundColor: colors.primary + '15' }]}>
+                <View style={[styles.tokenIconBox, { backgroundColor: applyAlpha(colors.primary, 0.15) }]}>
                    <Ionicons name="wallet-outline" size={28} color={colors.primary} />
                 </View>
              </View>
@@ -145,7 +145,7 @@ export default function PaymentsScreen() {
                  <View style={styles.methodHeadRow}>
                     <Text style={[styles.methodName, { color: colors.textPrimary }]}>{method.label}</Text>
                     {method.isDefault && (
-                       <View style={[styles.defaultTag, { backgroundColor: colors.primary + '15' }]}>
+                       <View style={[styles.defaultTag, { backgroundColor: applyAlpha(colors.primary, 0.15) }]}>
                           <Text style={[styles.defaultTagText, { color: colors.primary }]}>DEFAULT</Text>
                        </View>
                     )}
@@ -159,9 +159,11 @@ export default function PaymentsScreen() {
                       <Ionicons name="star-outline" size={20} color={colors.textMuted} />
                    </TouchableOpacity>
                  ) : null}
-                 <TouchableOpacity onPress={() => handleDelete(method.id)} style={styles.deleteBtn}>
-                    <Ionicons name="trash-outline" size={20} color={colors.error + '95'} />
-                 </TouchableOpacity>
+                 {(!method.isDefault && paymentMethods.length > 1) ? (
+                   <TouchableOpacity onPress={() => handleDelete(method.id)} style={styles.deleteBtn}>
+                      <Ionicons name="trash-outline" size={20} color={applyAlpha(colors.error, 0.95)} />
+                   </TouchableOpacity>
+                 ) : null}
               </View>
             </ProfessionalCard>
           </Animated.View>
@@ -174,7 +176,7 @@ export default function PaymentsScreen() {
             activeOpacity={0.7}
           >
              <BlurView intensity={10} tint={colors.isDark ? 'dark' : 'light'} style={styles.addBlur}>
-                <View style={[styles.plusCircle, { backgroundColor: colors.primary + '10' }]}>
+                <View style={[styles.plusCircle, { backgroundColor: applyAlpha(colors.primary, 0.1) }]}>
                    <Ionicons name="add" size={24} color={colors.primary} />
                 </View>
                 <View style={{ flex: 1 }}>
@@ -187,7 +189,7 @@ export default function PaymentsScreen() {
         </Animated.View>
 
         <Animated.View entering={FadeIn.delay(900).duration(800)} style={styles.securitySection}>
-           <View style={[styles.securityIconBox, { backgroundColor: colors.success + '08' }]}>
+           <View style={[styles.securityIconBox, { backgroundColor: applyAlpha(colors.success, 0.08) }]}>
               <Ionicons name="lock-closed-outline" size={24} color={colors.success} />
            </View>
            <View style={{ flex: 1 }}>
@@ -218,7 +220,7 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 70 : 50,
     paddingBottom: 20,
     borderBottomWidth: 0.5,
-    borderColor: 'rgba(0,0,0,0.05)',
+    borderColor: colors.border,
   },
   headerTop: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, gap: 12 },
   navBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },

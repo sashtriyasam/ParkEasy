@@ -8,11 +8,11 @@ doc.on('error', (err) => {
     console.error('PDF Generation Error:', err);
     process.exit(1);
 });
-doc.on('end', () => {
+doc.on('end', async () => {
     try {
         const pdfData = Buffer.concat(buffers);
+        await fs.promises.writeFile('test.pdf', pdfData);
         console.log('PDF Length:', pdfData.length);
-        fs.writeFileSync('test.pdf', pdfData);
         console.log('Successfully wrote test.pdf');
     } catch (err) {
         console.error('Error writing test.pdf:', err);

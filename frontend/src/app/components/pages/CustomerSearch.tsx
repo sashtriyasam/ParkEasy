@@ -31,6 +31,7 @@ import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Facility } from '@/types';
+import { toast } from 'sonner';
 
 // Fix for default marker icon
 let DefaultIcon = L.icon({
@@ -42,20 +43,47 @@ let DefaultIcon = L.icon({
 });
 L.Marker.prototype.options.icon = DefaultIcon;
 
-// Premium Custom Marker Icon
-const createMarkerIcon = (isActive: boolean) => L.divIcon({
+const USER_LOCATION_ICON = L.divIcon({
+  className: 'user-marker',
+  html: `
+      <div class="relative">
+        <div class="absolute inset-0 bg-blue-500/20 rounded-full animate-ping"></div>
+        <div class="relative w-6 h-6 bg-blue-600 border-4 border-white rounded-full shadow-2xl"></div>
+      </div>
+    `,
+  iconAnchor: [12, 12]
+});
+
+// Premium Custom Marker Icons (Cached)
+const ACTIVE_MARKER_ICON = L.divIcon({
   className: 'custom-marker',
   html: `
     <div class="relative group cursor-pointer">
-      <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-4 h-4 bg-primary/20 rounded-full blur-sm transition-all duration-300 ${isActive ? 'scale-150 bg-primary/40' : 'group-hover:scale-125'}"></div>
-      <div class="relative w-8 h-8 bg-white rounded-2xl flex items-center justify-center shadow-lg transform transition-all duration-300 border-2 ${isActive ? 'border-primary ring-4 ring-primary/20 -translate-y-2' : 'border-gray-100 group-hover:-translate-y-1'}">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${isActive ? '#1E40AF' : '#111827'}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-parking-square"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 17V7h4a3 3 0 0 1 0 6H9"/></svg>
+      <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-4 h-4 bg-primary/20 rounded-full blur-sm transition-all duration-300 scale-150 bg-primary/40"></div>
+      <div class="relative w-8 h-8 bg-white rounded-2xl flex items-center justify-center shadow-lg transform transition-all duration-300 border-2 border-primary ring-4 ring-primary/20 -translate-y-2">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4F46E5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-parking-square"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 17V7h4a3 3 0 0 1 0 6H9"/></svg>
       </div>
     </div>
   `,
   iconSize: [32, 32],
   iconAnchor: [16, 32],
 });
+
+const INACTIVE_MARKER_ICON = L.divIcon({
+  className: 'custom-marker',
+  html: `
+    <div class="relative group cursor-pointer">
+      <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-4 h-4 bg-primary/20 rounded-full blur-sm transition-all duration-300 group-hover:scale-125"></div>
+      <div class="relative w-8 h-8 bg-white rounded-2xl flex items-center justify-center shadow-lg transform transition-all duration-300 border-2 border-gray-100 group-hover:-translate-y-1">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-parking-square"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 17V7h4a3 3 0 0 1 0 6H9"/></svg>
+      </div>
+    </div>
+  `,
+  iconSize: [32, 32],
+  iconAnchor: [16, 32],
+});
+
+const getMarkerIcon = (isActive: boolean) => isActive ? ACTIVE_MARKER_ICON : INACTIVE_MARKER_ICON;
 
 // Map Controller with FlyTo animation
 function MapController({ center }: { center: [number, number] }) {
@@ -68,6 +96,40 @@ function MapController({ center }: { center: [number, number] }) {
   }, [center, map]);
   return null;
 }
+
+// Map Reference Helper to expose Leaflet instance
+function MapRef({ setMap }: { setMap: (map: L.Map | null) => void }) {
+  const map = useMap();
+  useEffect(() => {
+    if (map) setMap(map);
+    return () => setMap(null);
+  }, [map, setMap]);
+  return null;
+}
+
+const getAmenityFeatures = (amenities?: string[]) => {
+  const amenityMap: Record<string, { icon: any, label: string }> = {
+    'CCTV': { icon: Shield, label: 'Secure' },
+    'Security': { icon: Shield, label: 'Secure' },
+    '24/7': { icon: Clock, label: '24/7 Access' },
+    'EV Charging': { icon: Zap, label: 'EV Ready' },
+    'Valet': { icon: Zap, label: 'Valet' },
+    'Covered': { icon: Shield, label: 'Inside' }
+  };
+
+  if (!amenities || amenities.length === 0) {
+    return [
+      { icon: Shield, label: 'Secure' },
+      { icon: Clock, label: '24/7 Access' },
+      { icon: Zap, label: 'Fast Exit' }
+    ];
+  }
+
+  return amenities.slice(0, 3).map(name => {
+    const matched = amenityMap[name] || Object.entries(amenityMap).find(([key]) => name.includes(key))?.[1];
+    return matched || { icon: Zap, label: name };
+  });
+};
 
 export function CustomerSearch() {
   const navigate = useNavigate();
@@ -90,7 +152,7 @@ export function CustomerSearch() {
 
   const filteredFacilities = useMemo(() => {
     if (!Array.isArray(facilities)) return [];
-    let filtered = facilities.filter(f => f.is_active !== false); // Ensure active
+    let filtered = facilities.filter(f => f.isActive !== false); // Ensure active
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -102,8 +164,8 @@ export function CustomerSearch() {
 
     if (activeFilter === 'ev') filtered = filtered.filter(f => f.amenities?.includes('EV Charging'));
     if (activeFilter === 'covered') filtered = filtered.filter(f => f.amenities?.includes('Covered Parking'));
-    if (activeFilter === '247') filtered = filtered.filter(f => f.is_24_7 === true || f.amenities?.includes('24/7'));
-    if (activeFilter === 'premium') filtered = filtered.filter(f => f.is_premium === true || (f.rating && f.rating >= 4.5) || f.tier === 'premium' || f.amenities?.includes('Premium'));
+    if (activeFilter === '247') filtered = filtered.filter(f => f.is24_7 === true || f.amenities?.includes('24/7'));
+    if (activeFilter === 'premium') filtered = filtered.filter(f => f.isPremium === true || f.tier === 'premium' || f.amenities?.includes('Premium'));
 
     return filtered;
   }, [facilities, searchQuery, activeFilter]);
@@ -124,7 +186,17 @@ const mapCenter = useMemo((): [number, number] => {
   return [19.0760, 72.8777];
 }, [selectedFacility, userLocation]);
 
-return (
+  const formatReviewCount = (facility: Facility) => {
+    if (facility.reviewCountSummary) return facility.reviewCountSummary;
+    if (facility.reviewCount) {
+      return facility.reviewCount >= 1000
+        ? `${(facility.reviewCount / 1000).toFixed(1)}k`
+        : facility.reviewCount.toString();
+    }
+    return '2.4k';
+  };
+
+  return (
   <div className="relative h-screen w-full bg-white flex overflow-hidden pt-16 md:pt-0">
 
     {/* LEFT SIDEBAR (Desktop) */}
@@ -211,7 +283,7 @@ return (
                     />
                     <div className="absolute top-1.5 right-1.5 bg-white/90 backdrop-blur rounded-lg px-1.5 py-0.5 text-[10px] font-black flex items-center shadow-sm">
                       <Star className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500 mr-1" />
-                      {facility.rating || '4.5'}
+                      {facility.rating ?? 4.5}
                     </div>
                   </div>
 
@@ -219,7 +291,7 @@ return (
                     <div>
                       <div className="flex justify-between items-start">
                         <h3 className="font-bold text-gray-900 text-lg leading-tight group-hover:text-primary transition-colors">{facility.name}</h3>
-                        <p className="text-xl font-black text-primary">{facility.currency || '₹'}{facility.hourly_rate || 60}</p>
+                        <p className="text-xl font-black text-primary">{facility.currency ?? '₹'}{facility.hourlyRate ?? 60}</p>
                       </div>
                       <p className="text-xs text-gray-500 flex items-center mt-1">
                         <MapPin className="w-3 h-3 mr-1 shrink-0" />
@@ -229,12 +301,16 @@ return (
 
                     <div className="flex items-center justify-between mt-3">
                       <div className="flex gap-2">
-                        <Badge variant="secondary" className="px-2 py-0 h-5 text-[10px] bg-green-50 text-green-700 border-0">
-                          Available Now
-                        </Badge>
-                        <Badge variant="secondary" className="px-2 py-0 h-5 text-[10px] bg-blue-50 text-blue-700 border-0">
-                          Verified
-                        </Badge>
+                        {(facility.availableSlots ?? 0) > 0 && (
+                          <Badge variant="secondary" className="px-2 py-0 h-5 text-[10px] bg-green-50 text-green-700 border-0">
+                            Available Now
+                          </Badge>
+                        )}
+                        {facility.verified && (
+                          <Badge variant="secondary" className="px-2 py-0 h-5 text-[10px] bg-blue-50 text-blue-700 border-0">
+                            Verified
+                          </Badge>
+                        )}
                       </div>
                       <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-primary transform group-hover:translate-x-1 transition-all" />
                     </div>
@@ -349,7 +425,6 @@ return (
         </AnimatePresence>
         <MapContainer
           center={mapCenter}
-          ref={setMapInstance}
           zoom={14}
           zoomControl={false}
           style={{ height: '100%', width: '100%' }}
@@ -359,22 +434,14 @@ return (
             url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
           />
+          <MapRef setMap={setMapInstance} />
           <MapController center={mapCenter} />
 
           {/* User Location Marker */}
           {userLocation && (
             <Marker
               position={userLocation}
-              icon={L.divIcon({
-                className: 'user-marker',
-                html: `
-                    <div class="relative">
-                      <div class="absolute inset-0 bg-blue-500/20 rounded-full animate-ping"></div>
-                      <div class="relative w-6 h-6 bg-blue-600 border-4 border-white rounded-full shadow-2xl"></div>
-                    </div>
-                  `,
-                iconAnchor: [12, 12]
-              })}
+              icon={USER_LOCATION_ICON}
             />
           )}
 
@@ -383,7 +450,7 @@ return (
               <Marker
                 key={facility.id}
                 position={[facility.latitude, facility.longitude]}
-                icon={createMarkerIcon(selectedFacility?.id === facility.id)}
+                icon={getMarkerIcon(selectedFacility?.id === facility.id)}
                 eventHandlers={{
                   click: () => {
                     setSelectedFacility(facility);
@@ -401,7 +468,11 @@ return (
         <Button
           className="w-12 h-12 rounded-2xl bg-white text-gray-900 border-0 shadow-2xl hover:bg-gray-50 flex items-center justify-center p-0"
           onClick={() => {
-            if (userLocation) setSelectedFacility(null); // This will trigger mapCenter memo to return userLocation
+            if (userLocation) {
+              setSelectedFacility(null); // This will trigger mapCenter memo to return userLocation
+            } else {
+              toast.error('Location not available. Please enable location services.');
+            }
           }}
         >
           <Navigation className="w-5 h-5 text-primary" />
@@ -447,6 +518,8 @@ return (
                   <button
                     className="w-10 h-10 bg-white/20 hover:bg-white/40 backdrop-blur-md rounded-full flex items-center justify-center text-white transition-all"
                     onClick={() => setSelectedFacility(null)}
+                    aria-label="Close facility details"
+                    title="Close"
                   >
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
                   </button>
@@ -459,35 +532,37 @@ return (
                     <h3 className="text-2xl font-black text-gray-900 leading-tight mb-1">{selectedFacility.name}</h3>
                     <div className="flex items-center gap-2">
                       <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                      <span className="text-sm font-bold text-gray-900">{selectedFacility.rating || '4.5'}</span>
-                      <span className="text-xs text-gray-400 font-medium">({selectedFacility.reviewCountSummary || (selectedFacility.reviewCount ? (selectedFacility.reviewCount >= 1000 ? `${(selectedFacility.reviewCount / 1000).toFixed(1)}k` : selectedFacility.reviewCount) : '2.4k')} reviews)</span>
+                      <span className="text-sm font-bold text-gray-900">{selectedFacility.rating ?? 4.5}</span>
+                      <span className="text-xs text-gray-400 font-medium">({formatReviewCount(selectedFacility)} reviews)</span>
                       <span className="text-gray-200">•</span>
                       <MapPin className="w-3.5 h-3.5 text-primary" />
-                      <span className="text-xs text-gray-500 font-medium">{selectedFacility.distance || '800m'} away</span>
+                      <span className="text-xs text-gray-500 font-medium">
+                        {typeof selectedFacility.distance === 'number'
+                          ? selectedFacility.distance < 1
+                            ? `${(selectedFacility.distance * 1000).toFixed(0)}m`
+                            : `${selectedFacility.distance.toFixed(1)}km`
+                          : '800m'} away
+                      </span>
                     </div>
                   </div>
                   <div className="text-right shrink-0">
                     <div className="flex items-baseline justify-end gap-1">
-                      <span className="text-sm font-bold text-gray-400">{selectedFacility.currency || '₹'}</span>
-                      <span className="text-3xl font-black text-primary tracking-tighter">{selectedFacility.hourly_rate || 60}</span>
+                      <span className="text-sm font-bold text-gray-400">{selectedFacility.currency ?? '₹'}</span>
+                      <span className="text-3xl font-black text-primary tracking-tighter">{selectedFacility.hourlyRate ?? 60}</span>
                     </div>
                     <span className="text-[10px] text-gray-400 font-black uppercase tracking-wider">Per Hour</span>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-3 gap-3 mb-6">
-                  <div className="bg-gray-50 flex flex-col items-center justify-center py-2.5 rounded-2xl border border-black/[0.03]">
-                    <Shield className="w-4 h-4 text-primary mb-1" />
-                    <span className="text-[10px] font-bold text-gray-600">Secure</span>
-                  </div>
-                  <div className="bg-gray-50 flex flex-col items-center justify-center py-2.5 rounded-2xl border border-black/[0.03]">
-                    <Clock className="w-4 h-4 text-primary mb-1" />
-                    <span className="text-[10px] font-bold text-gray-600">24/7 Access</span>
-                  </div>
-                  <div className="bg-gray-50 flex flex-col items-center justify-center py-2.5 rounded-2xl border border-black/[0.03]">
-                    <Zap className="w-4 h-4 text-primary mb-1" />
-                    <span className="text-[10px] font-bold text-gray-600">Fast Exit</span>
-                  </div>
+                  {getAmenityFeatures(selectedFacility.amenities).map((feature, idx) => (
+                    <div key={idx} className="bg-gray-50 flex flex-col items-center justify-center py-2.5 rounded-2xl border border-black/[0.03]">
+                      <feature.icon className="w-4 h-4 text-primary mb-1" />
+                      <span className="text-[10px] font-bold text-gray-600 truncate px-1 w-full text-center">
+                        {feature.label}
+                      </span>
+                    </div>
+                  ))}
                 </div>
 
                 <div className="flex gap-4">

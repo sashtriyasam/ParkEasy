@@ -21,7 +21,7 @@ const storeRefreshToken = async (userId, token) => {
 };
 
 const register = asyncHandler(async (req, res, next) => {
-    const { email, password, full_name, phone_number, role } = req.body;
+    const { email, password, full_name, phone_number } = req.body;
 
     // Check if user exists
     const existingUser = await prisma.user.findUnique({
@@ -36,7 +36,8 @@ const register = asyncHandler(async (req, res, next) => {
     const salt = await bcrypt.genSalt(10);
     const password_hash = await bcrypt.hash(password, salt);
 
-    // Create user (accept role for QA test, default to CUSTOMER)
+    // Create user - role is always CUSTOMER on self-registration.
+    // Role elevation is handled separately via admin-only endpoints.
     let newUser;
     try {
         newUser = await prisma.user.create({
@@ -45,7 +46,7 @@ const register = asyncHandler(async (req, res, next) => {
                 password_hash,
                 full_name,
                 phone_number,
-                role: role || 'CUSTOMER',
+                role: 'CUSTOMER',
             },
         });
     } catch (error) {
@@ -240,6 +241,25 @@ const switchRole = asyncHandler(async (req, res, next) => {
     });
 });
 
+const deleteMe = asyncHandler(async (req, res, next) => {
+    const userId = req.user.id;
+
+    // Delete refresh tokens first (referential integrity)
+    await prisma.refreshToken.deleteMany({
+        where: { user_id: userId }
+    });
+
+    // Delete user
+    await prisma.user.delete({
+        where: { id: userId }
+    });
+
+    res.status(200).json({
+        status: 'success',
+        message: 'Account deleted successfully'
+    });
+});
+
 // TEMPORARY: Seed admin in production and ensure password is correct
 const seedProductionAdmin = asyncHandler(async (req, res, next) => {
     const email = 'admin@parkeasy.com';
@@ -275,5 +295,6 @@ module.exports = {
     updatePushToken,
     logout,
     switchRole,
+    deleteMe,
     seedProductionAdmin
 };

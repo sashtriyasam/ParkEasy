@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -12,7 +12,6 @@ import {
   Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { useHaptics } from '../hooks/useHaptics';
 import { ProfessionalButton } from './ui/ProfessionalButton';
@@ -21,7 +20,6 @@ import { ProfessionalCard } from './ui/ProfessionalCard';
 import { post } from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import { VehicleType } from '../types';
-import { useRef } from 'react';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -62,7 +60,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
   const haptics = useHaptics();
   const [step, setStep] = useState<'selection' | 'processing' | 'success'>('selection');
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('upi');
-  const slideAnim = useState(new Animated.Value(SCREEN_HEIGHT))[0];
+  const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT));
   const { user } = useAuthStore();
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const secondTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -70,14 +68,14 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
   useEffect(() => {
     if (visible) {
       setStep('selection');
-      Animated.spring(slideAnim, {
+      Animated.spring(slideAnim.current, {
         toValue: 0,
         useNativeDriver: true,
         damping: 25,
         stiffness: 120
       }).start();
     } else {
-      Animated.timing(slideAnim, {
+      Animated.timing(slideAnim.current, {
         toValue: SCREEN_HEIGHT,
         duration: 250,
         useNativeDriver: true
@@ -189,7 +187,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
       console.error('Payment Error:', error);
       setStep('selection');
       haptics.notificationError();
-      alert(error.description || error.message || 'Transaction Interrupted');
+      Alert.alert('Error', error.description || error.message || 'Transaction Interrupted');
     }
   };
 
@@ -229,7 +227,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <Pressable style={styles.overlay} onPress={onClose}>
-        <Animated.View style={[styles.sheet, { backgroundColor: colors.background, transform: [{ translateY: slideAnim }] }]}>
+        <Animated.View style={[styles.sheet, { backgroundColor: colors.background, transform: [{ translateY: slideAnim.current }] }]}>
           <Pressable style={styles.content}>
             <View style={[styles.dragHandle, { backgroundColor: colors.border }]} />
             

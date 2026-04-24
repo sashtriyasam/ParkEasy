@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import pkg from '../../../../package.json';
 import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
@@ -56,14 +57,19 @@ export function Login() {
       <div className="max-w-md mx-auto w-full flex-1 flex flex-col justify-center pb-12">
         <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center justify-between">
           <span>{isProvider ? 'Partner Login' : 'Welcome back'}</span>
-          <span className="text-[10px] font-normal text-gray-300">v1.7</span>
+          <span className="text-[10px] font-normal text-gray-500">v{pkg.version}</span>
         </h1>
         <p className="text-gray-500 mb-6">
           {isProvider ? 'Manage your parking business' : 'Enter your details to continue'}
         </p>
 
         {isProvider && (
-          <div className="mb-6 p-3 bg-blue-50 border border-blue-100 rounded-xl flex items-center gap-3 animate-in slide-in-from-top-2 duration-300">
+          <div 
+            className="mb-6 p-3 bg-blue-50 border border-blue-100 rounded-xl flex items-center gap-3 animate-in slide-in-from-top-2 duration-300"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
             <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center shrink-0">
               <span className="text-primary font-bold text-lg">P</span>
             </div>

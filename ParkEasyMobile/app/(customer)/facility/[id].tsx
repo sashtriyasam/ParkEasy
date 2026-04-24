@@ -9,7 +9,8 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
-  StatusBar
+  StatusBar,
+  Share
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -52,6 +53,14 @@ interface Facility {
   slots?: ParkingSlot[];
 }
 
+const formatReviewCount = (count?: number): string => {
+  if (!count) return 'OVER 2.4K';
+  if (count < 1000) return count.toString();
+  const kValue = count / 1000;
+  const formatted = kValue % 1 === 0 ? kValue.toFixed(0) : kValue.toFixed(1);
+  return `OVER ${formatted}K`;
+};
+
 export default function FacilityDetailsScreen() {
   const { id } = useLocalSearchParams();
   const facilityId = Array.isArray(id) ? id[0] : id;
@@ -76,6 +85,10 @@ export default function FacilityDetailsScreen() {
       const res = await get(`/facilities/${facilityId}`);
       if (res.data?.data) {
         setFacility(res.data.data);
+      } else {
+        Alert.alert('Not Found', 'The requested parking facility could not be found.', [
+          { text: 'Go Back', onPress: () => router.back() }
+        ]);
       }
     } catch (error) {
       console.error('Error fetching facility:', error);
@@ -90,6 +103,21 @@ export default function FacilityDetailsScreen() {
       scrollY.value = event.contentOffset.y;
     },
   });
+  
+  const handleShare = async () => {
+    if (!facility) return;
+    haptics.impactLight();
+    try {
+      await Share.share({
+        message: `Check out ${facility.name} parking facility at ${facility.address}!`,
+        url: `https://parkeasy.app/facility/${facility.id}`,
+        title: facility.name
+      });
+    } catch (error) {
+      console.error('Sharing error:', error);
+      Alert.alert('Sharing Failed', 'Could not open share dialog.');
+    }
+  };
 
   const headerAnimatedStyle = useAnimatedStyle(() => {
     const scale = interpolate(
@@ -113,7 +141,7 @@ export default function FacilityDetailsScreen() {
     return { opacity };
   });
 
-  const handleBookNow = async () => {
+  const handleBookNow = () => {
     if (!facility) return;
     setBookingLoading(true);
     try {
@@ -129,11 +157,13 @@ export default function FacilityDetailsScreen() {
         if (availableSlot) setSlot(availableSlot);
       }
 
+      // Clear loading state synchronously before moving context to avoid unmount cleanup issues
+      setBookingLoading(false);
+
       // Navigate to the structured booking flow
       router.push(`/(customer)/booking/vehicle`);
-    } finally {
-      // Small timeout to allow navigation to start before clearing loading
-      setTimeout(() => setBookingLoading(false), 500);
+    } catch (e) {
+      setBookingLoading(false);
     }
   };
 
@@ -181,7 +211,7 @@ export default function FacilityDetailsScreen() {
 
         <TouchableOpacity 
           style={[styles.backButton, { backgroundColor: 'rgba(0,0,0,0.3)' }]} 
-          onPress={() => haptics.impactLight()}
+          onPress={handleShare}
         >
           <Ionicons name="share-outline" size={22} color="#FFF" />
         </TouchableOpacity>
@@ -208,7 +238,7 @@ export default function FacilityDetailsScreen() {
                   <Text style={[styles.ratingText, { color: colors.textPrimary }]}>{facility.rating || '4.9'}</Text>
                </View>
                <Text style={[styles.reviewCount, { color: colors.textMuted }]}>
-                  • {facility.reviewCount ? (facility.reviewCount >= 1000 ? `OVER ${(facility.reviewCount / 1000).toFixed(1)}K` : facility.reviewCount) : 'OVER 2.4K'} REVIEWS
+                  • {formatReviewCount(facility.reviewCount)} REVIEWS
                </Text>
             </View>
 
@@ -282,7 +312,18 @@ export default function FacilityDetailsScreen() {
   );
 }
 
-function InfoItem({ icon, label, value, colors }: any) {
+interface InfoItemProps {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string | number;
+  colors: {
+    primary: string;
+    textMuted: string;
+    textPrimary: string;
+  };
+}
+
+function InfoItem({ icon, label, value, colors }: InfoItemProps) {
   return (
     <ProfessionalCard style={styles.infoCard} hasVibrancy={true}>
       <View style={[styles.iconBox, { backgroundColor: colors.primary + '10' }]}>

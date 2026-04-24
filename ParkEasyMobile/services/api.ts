@@ -62,11 +62,17 @@ apiClient.interceptors.response.use(
           // No refresh token available, force logout
           throw new Error('No refresh token');
         }
-      } catch (refreshError: any) {
+      } catch (refreshError: unknown) {
         // Professional Proactive Session Cleanup:
         // Automatically clears memory & store, then redirects via RootLayout.
-        await useAuthStore.getState().logout();
-        console.error('Session expired. Universal authentication gateway reset.');
+        const errorMsg = refreshError instanceof Error ? refreshError.message : String(refreshError);
+        console.error(`Session expired [${errorMsg}]. Universal authentication gateway reset.`);
+        
+        try {
+          await useAuthStore.getState().logout();
+        } catch (logoutError) {
+          console.error('Logout failed during session expiration handling:', logoutError);
+        }
         return Promise.reject(new Error('AUTHENTICATION_EXPIRED'));
       }
     }

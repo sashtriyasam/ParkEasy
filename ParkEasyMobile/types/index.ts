@@ -11,7 +11,14 @@ export interface User {
   phone_number: string;
   role: UserRole;
   avatar?: string;
+  /**
+   * Wallet or prepaid credit balance for the user.
+   * Represented in the primary currency (e.g., INR).
+   * @optional Defaults to 0 if not present.
+   */
   balance?: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface PricingRule {
@@ -19,6 +26,8 @@ export interface PricingRule {
   vehicle_type: VehicleType;
   hourly_rate: number;
   daily_max?: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface ParkingFacility {
@@ -43,6 +52,8 @@ export interface ParkingFacility {
   price_per_hour?: number;
   is_active: boolean;
   pricing_rules: PricingRule[];
+  created_at?: string;
+  updated_at?: string;
 }
 export interface ParkingSlot {
   id: string; 
@@ -53,6 +64,8 @@ export interface ParkingSlot {
   vehicle_type: VehicleType; 
   status: SlotStatus; 
   price_per_hour?: number;
+  created_at?: string;
+  updated_at?: string;
 }
 export interface Booking {
   id: string;
@@ -71,6 +84,7 @@ export interface Booking {
   status: string;
   qr_code?: string;
   slot?: ParkingSlot;
+  slot_number?: string;
   facility?: ParkingFacility;
   created_at?: string;
   updated_at?: string;
@@ -82,6 +96,8 @@ export interface Vehicle {
   vehicle_type: VehicleType;
   nickname?: string; 
   is_default: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 export interface MonthlyPass {
   id: string; 
@@ -92,6 +108,8 @@ export interface MonthlyPass {
   end_date: string; 
   amount: number; 
   is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 export interface AuthResponse {
   status: string;

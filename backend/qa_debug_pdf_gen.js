@@ -33,9 +33,9 @@ async function debugPDF() {
         const buffer = await generateTicketPDF(ticket);
         console.log('PDF Generated. Buffer Result:', buffer ? `Length: ${buffer.length}` : 'NULL');
         
-        if (buffer && Buffer.isBuffer(buffer)) {
+        if (Buffer.isBuffer(buffer) && buffer.length > 0) {
           fs.writeFileSync('debug_ticket.pdf', buffer);
-          console.log('File saved to debug_ticket.pdf');
+          console.log(`✅ File saved successfully (${buffer.length} bytes) to debug_ticket.pdf`);
         } else {
           console.error('❌ PDF Buffer is invalid or empty. Skipping file write.');
         }
@@ -43,8 +43,13 @@ async function debugPDF() {
     } catch (error) {
         console.error('Error during PDF debug:', error);
     } finally {
-        await prisma.$disconnect();
+        await prisma.$disconnect().catch((err) => {
+            console.error('Error disconnecting Prisma logic:', err);
+        });
     }
 }
 
-debugPDF();
+debugPDF().catch((err) => {
+    console.error('Unhandled rejection in debugPDF entry point:', err);
+    process.exit(1);
+});

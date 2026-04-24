@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Search, Filter, Calendar, User, Phone, Car, MapPin, Clock, CreditCard, Info } from 'lucide-react';
+import axios from 'axios';
+import { Search, Calendar, User, Phone, Car, MapPin, Clock, CreditCard, Info } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/app/components/ui/card';
@@ -95,8 +96,14 @@ export function ProviderBookings() {
             // Clear selected booking state
             setSelectedBooking(prev => prev ? { ...prev, status: 'cancelled' } : null);
             setIsDetailsOpen(false);
-        } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Failed to cancel booking');
+        } catch (error: unknown) {
+            if (axios.isAxiosError(error)) {
+                toast.error(error.response?.data?.message || 'Failed to cancel booking');
+            } else if (error instanceof Error) {
+                toast.error(error.message);
+            } else {
+                toast.error('Failed to cancel booking');
+            }
         } finally {
             setIsCancelling(false);
             setShowCancelAlert(false);
@@ -223,7 +230,15 @@ export function ProviderBookings() {
                                                 {getStatusBadge(booking.status)}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                <Button variant="ghost" size="sm" className="text-indigo-600 hover:text-indigo-900">
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="sm" 
+                                                    className="text-indigo-600 hover:text-indigo-900"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleViewDetails(booking);
+                                                    }}
+                                                >
                                                     <Info className="w-4 h-4 mr-1" />
                                                     Details
                                                 </Button>

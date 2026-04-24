@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, ComponentProps } from 'react';
 import {
   View,
   Text,
@@ -26,6 +26,7 @@ import { useAuthStore } from '../../../store/authStore';
 import { useSocket } from '../../../hooks/useSocket';
 import { useThemeColors } from '../../../hooks/useThemeColors';
 import { useHaptics } from '../../../hooks/useHaptics';
+import { useToast } from '../../../components/Toast';
 
 const { width } = Dimensions.get('window');
 
@@ -43,17 +44,27 @@ interface Booking {
   booking_type?: 'ONLINE' | 'OFFLINE';
   facility_id: string;
   facility?: { name: string };
-  status: string;
   entry_time: string;
+  // Retained for API compatibility and potential future use
+  status: string;
   total_fee?: number;
   [key: string]: any;
 }
+
+const formatBookingTime = (entry_time: string) => {
+  if (!entry_time) return '-';
+  const date = new Date(entry_time);
+  return isNaN(date.getTime()) 
+    ? '-' 
+    : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
 
 export default function ProviderDashboard() {
   const { user } = useAuthStore();
   const router = useRouter();
   const colors = useThemeColors();
   const haptics = useHaptics();
+  const { showToast } = useToast();
   const { socket, isConnected, joinProvider } = useSocket();
   
   const [facilities, setFacilities] = useState<Facility[]>([]);
@@ -65,9 +76,11 @@ export default function ProviderDashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [dashboardError, setDashboardError] = useState(false);
 
   const fetchDashboardData = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
+    setDashboardError(false);
     try {
       const [statsRes, facilitiesRes, bookingsRes] = await Promise.all([
         get('/provider/dashboard/stats'),
@@ -93,11 +106,13 @@ export default function ProviderDashboard() {
       }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+      setDashboardError(true);
+      showToast('Sync failed. Please check your connection.', 'error');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [showToast]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -105,9 +120,8 @@ export default function ProviderDashboard() {
 
   // Socket Real-time Sync
   const handleSocketRefresh = useCallback(() => {
-    haptics.impactLight();
     fetchDashboardData(false);
-  }, [haptics, fetchDashboardData]);
+  }, [fetchDashboardData]);
 
   useEffect(() => {
     if (!socket || !user?.id) return;
@@ -139,42 +153,57 @@ export default function ProviderDashboard() {
     return Math.min(rate, 100);
   }, [activeBookings, totalSlots]);
 
-  if (loading && !refreshing) {
-    return (
-      <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="small" color={colors.primary} />
-      </View>
-    );
-  }
-
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <StatusBar barStyle={colors.isDark ? 'light-content' : 'dark-content'} />
-      
-      <View style={styles.header}>
-        <View>
-          <Text style={[styles.greetingLabel, { color: colors.textMuted }]}>PARTNER OVERVIEW</Text>
-          <Text style={[styles.userName, { color: colors.textPrimary }]}>{user?.full_name || 'Partner'}</Text>
-        </View>
+          const onPrimary = colors.isDark ? colors.textPrimary : colors.background;
+          const onPrimaryMuted = onPrimary + 'B3'; // 0.7 opacity
+          const onPrimarySubtle = onPrimary + '99'; // 0.6 opacity
+          const onPrimaryAlpha = onPrimary + '33'; // 0.2 opacity
+          
+          if (loading && !refreshing) {
+            return (
+              <View style={[styles.center, { backgroundColor: colors.background }]}>
+                <ActivityIndicator size="small" color={colors.primary} />
+              </View>
+            );
+          }
         
-        <TouchableOpacity 
-          style={[styles.syncBadge, { backgroundColor: colors.surface, borderColor: colors.border }]}
-          onPress={onRefresh}
-        >
-          <View style={[styles.syncDot, { backgroundColor: isConnected ? colors.success : colors.warning }]} />
-          <Text style={[styles.syncText, { color: isConnected ? colors.success : colors.warning }]}>
-            {isConnected ? 'LIVE' : 'SYNCING'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
-        }
-      >
+          return (
+            <View style={[styles.container, { backgroundColor: colors.background }]}>
+              <StatusBar barStyle={colors.isDark ? 'light-content' : 'dark-content'} />
+              
+              <View style={styles.header}>
+                <View>
+                  <Text style={[styles.greetingLabel, { color: colors.textMuted }]}>PARTNER OVERVIEW</Text>
+                  <Text style={[styles.userName, { color: colors.textPrimary }]}>{user?.full_name || 'Partner'}</Text>
+                </View>
+                
+                <TouchableOpacity 
+                  style={[styles.syncBadge, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                  onPress={onRefresh}
+                >
+                  <View style={[styles.syncDot, { backgroundColor: isConnected ? colors.success : colors.warning }]} />
+                  <Text style={[styles.syncText, { color: isConnected ? colors.success : colors.warning }]}>
+                    {isConnected ? 'LIVE' : 'SYNCING'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+        
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scrollContent}
+                refreshControl={
+                  <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+                }
+              >
+                {dashboardError && (
+                  <TouchableOpacity 
+                    style={[styles.errorBanner, { backgroundColor: colors.error }]} 
+                    onPress={() => fetchDashboardData()}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="cloud-offline-outline" size={16} color={onPrimary} />
+                    <Text style={[styles.errorBannerText, { color: onPrimary }]}>Sync Interrupted. Tap to reconnect.</Text>
+                  </TouchableOpacity>
+                )}
         {/* Apple-style Hero Section: Offline Entry Widget */}
         <Animated.View entering={FadeInDown.duration(800)}>
           <ProfessionalCard 
@@ -186,28 +215,28 @@ export default function ProviderDashboard() {
              }}
           >
              <View style={styles.heroLayout}>
-                <View style={styles.heroTextSection}>
-                   <Text style={styles.heroTitle}>Manual Check-in</Text>
-                   <Text style={styles.heroSubtitle}>Direct entry for walk-in arrivals</Text>
-                   
-                   <View style={styles.occupancyBarContainer}>
-                      <View style={styles.occupancyTextRow}>
-                         <Text style={styles.occupancyLabel}>LIVE OCCUPANCY</Text>
-                         <Text style={styles.occupancyPercent}>{occupancyRate}%</Text>
-                      </View>
-                      <View style={[styles.progressBarBg, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-                         <Animated.View 
-                            style={[
-                               styles.progressBarFill, 
-                               { width: `${occupancyRate}%`, backgroundColor: '#FFF' }
-                            ]} 
-                         />
-                      </View>
-                   </View>
-                </View>
-                <View style={[styles.heroIconBox, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-                   <Ionicons name="add" size={32} color="#FFF" />
-                </View>
+                 <View style={styles.heroTextSection}>
+                    <Text style={[styles.heroTitle, { color: onPrimary }]}>Manual Check-in</Text>
+                    <Text style={[styles.heroSubtitle, { color: onPrimaryMuted }]}>Direct entry for walk-in arrivals</Text>
+                    
+                    <View style={styles.occupancyBarContainer}>
+                       <View style={styles.occupancyTextRow}>
+                          <Text style={[styles.occupancyLabel, { color: onPrimarySubtle }]}>LIVE OCCUPANCY</Text>
+                          <Text style={[styles.occupancyPercent, { color: onPrimary }]}>{occupancyRate}%</Text>
+                       </View>
+                       <View style={[styles.progressBarBg, { backgroundColor: onPrimaryAlpha }]}>
+                          <Animated.View 
+                             style={[
+                                styles.progressBarFill, 
+                                { width: `${occupancyRate}%`, backgroundColor: onPrimary }
+                             ]} 
+                          />
+                       </View>
+                    </View>
+                 </View>
+                 <View style={[styles.heroIconBox, { backgroundColor: onPrimaryAlpha }]}>
+                    <Ionicons name="add" size={32} color={onPrimary} />
+                 </View>
              </View>
           </ProfessionalCard>
         </Animated.View>
@@ -261,12 +290,12 @@ export default function ProviderDashboard() {
                 layout={Layout.springify()}
               >
                 <ProfessionalCard 
-                  style={styles.activityItem} 
+                  style={[styles.activityItem, !booking.facility_id && { opacity: 0.5 }]} 
                   onPress={() => {
                     if (booking.facility_id) {
                       router.push(`/(provider)/facility/${booking.facility_id}`);
                     } else {
-                      console.warn('Booking missing facility_id:', booking.id);
+                      showToast('Facility information unavailable', 'info');
                     }
                   }}
                   hasVibrancy={true}
@@ -276,18 +305,22 @@ export default function ProviderDashboard() {
                        <Ionicons 
                           name={booking.booking_type === 'OFFLINE' ? 'walk-outline' : 'phone-portrait-outline'} 
                           size={20} 
-                          color={booking.booking_type === 'OFFLINE' ? '#F59E0B' : colors.primary} 
+                          color={booking.booking_type === 'OFFLINE' ? colors.warning : colors.primary} 
                         />
                     </View>
-                    <View>
+                    <View style={{ flex: 1 }}>
                        <Text style={[styles.vehicleId, { color: colors.textPrimary }]}>{booking.vehicle_number}</Text>
-                       <Text style={[styles.activitySub, { color: colors.textMuted }]}>
-                          {booking.booking_type || 'ONLINE'} • {booking.facility?.name?.split(' ')[0]}
+                       <Text 
+                         style={[styles.activitySub, { color: colors.textMuted }]}
+                         numberOfLines={1}
+                         ellipsizeMode="tail"
+                       >
+                          {booking.booking_type || 'ONLINE'} • {booking.facility?.name}
                        </Text>
                     </View>
                   </View>
                   <Text style={[styles.arrivalTimestamp, { color: colors.primary }]}>
-                    {new Date(booking.entry_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {formatBookingTime(booking.entry_time)}
                   </Text>
                 </ProfessionalCard>
               </Animated.View>
@@ -301,7 +334,18 @@ export default function ProviderDashboard() {
   );
 }
 
-function MiniStat({ label, value, icon, colors }: any) {
+interface MiniStatProps {
+  label: string;
+  value: string | number;
+  icon: ComponentProps<typeof Ionicons>['name'];
+  colors: {
+    primary: string;
+    textMuted: string;
+    textPrimary: string;
+  };
+}
+
+function MiniStat({ label, value, icon, colors }: MiniStatProps) {
   return (
     <ProfessionalCard style={styles.miniStatCard} hasVibrancy={true}>
        <Ionicons name={icon} size={20} color={colors.primary} style={{ marginBottom: 12 }} />
@@ -328,16 +372,16 @@ const styles = StyleSheet.create({
   syncDot: { width: 8, height: 8, borderRadius: 4 },
   syncText: { fontSize: 10, fontWeight: '900', letterSpacing: 1 },
   scrollContent: { paddingHorizontal: 20, paddingBottom: 100 },
-  heroCard: { padding: 0, borderRadius: 32, marginBottom: 24, borderWidth: 0, elevation: 12, shadowColor: '#4F46E5', shadowOpacity: 0.3, shadowRadius: 20, shadowOffset: { width: 0, height: 10 } },
+  heroCard: { padding: 0, borderRadius: 32, marginBottom: 24, borderWidth: 0, elevation: 12, shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 20, shadowOffset: { width: 0, height: 10 } },
   heroLayout: { padding: 28, flexDirection: 'row', alignItems: 'center', gap: 20 },
   heroTextSection: { flex: 1 },
-  heroTitle: { color: '#FFF', fontSize: 24, fontWeight: '900', letterSpacing: -0.5 },
-  heroSubtitle: { color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: '600', marginTop: 4 },
+  heroTitle: { fontSize: 24, fontWeight: '900', letterSpacing: -0.5 },
+  heroSubtitle: { fontSize: 13, fontWeight: '600', marginTop: 4 },
   heroIconBox: { width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center' },
   occupancyBarContainer: { marginTop: 24 },
   occupancyTextRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8, alignItems: 'flex-end' },
-  occupancyLabel: { color: 'rgba(255,255,255,0.6)', fontSize: 9, fontWeight: '900', letterSpacing: 1.5 },
-  occupancyPercent: { color: '#FFF', fontSize: 18, fontWeight: '900' },
+  occupancyLabel: { fontSize: 9, fontWeight: '900', letterSpacing: 1.5 },
+  occupancyPercent: { fontSize: 18, fontWeight: '900' },
   progressBarBg: { height: 8, borderRadius: 4, overflow: 'hidden' },
   progressBarFill: { height: '100%', borderRadius: 4 },
   statsSection: { gap: 12, marginBottom: 32 },
@@ -355,4 +399,6 @@ const styles = StyleSheet.create({
   vehicleId: { fontSize: 15, fontWeight: '900' },
   activitySub: { fontSize: 11, fontWeight: '700', marginTop: 3 },
   arrivalTimestamp: { fontSize: 13, fontWeight: '900' },
+  errorBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 12, borderRadius: 20, marginBottom: 20, marginHorizontal: 4 },
+  errorBannerText: { fontSize: 11, fontWeight: '900', letterSpacing: 0.5 },
 });

@@ -61,15 +61,15 @@ export default function EditFacility() {
       }
     };
     fetchFacility();
-  }, [id]);
+  }, [id, showToast]);
 
   const handleSave = async () => {
-    haptics.impactMedium();
     if (!formData.name || !formData.address) {
       showToast('Name and Address are required', 'error');
       return;
     }
 
+    haptics.impactMedium();
     setSaving(true);
     try {
       await put(`/provider/facilities/${id}`, {
@@ -139,7 +139,7 @@ export default function EditFacility() {
           />
 
           <View style={styles.row}>
-            <View style={{ flex: 1 }}>
+            <View style={styles.flexOne}>
                <ProfessionalInput
                  label="HOURS"
                  value={formData.operating_hours}
@@ -148,8 +148,8 @@ export default function EditFacility() {
                  icon="time-outline"
                />
             </View>
-            <View style={{ width: 16 }} />
-            <View style={{ flex: 1 }}>
+            <View style={styles.spacer16} />
+            <View style={styles.flexOne}>
                <ProfessionalInput
                  label="CAPACITY"
                  value={formData.total_slots}
@@ -168,7 +168,7 @@ export default function EditFacility() {
             placeholder="Physical storefront/lot address"
             icon="location-outline"
             multiline
-            style={{ height: 80 }}
+            style={styles.textAreaSmall}
           />
 
           <ProfessionalInput
@@ -178,7 +178,7 @@ export default function EditFacility() {
             placeholder="Highlights, security info, or entrance guide..."
             icon="document-text-outline"
             multiline
-            style={{ height: 120 }}
+            style={styles.textAreaLarge}
           />
 
           <View style={styles.footer}>
@@ -187,7 +187,7 @@ export default function EditFacility() {
                 onPress={handleSave}
                 variant="primary"
                 loading={saving}
-                style={{ flex: 2 }}
+                style={styles.flexTwo}
              />
              <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.surface }]} onPress={() => router.back()}>
                 <Text style={[styles.cancelTxt, { color: colors.textSecondary }]}>Cancel</Text>
@@ -219,6 +219,11 @@ const styles = StyleSheet.create({
   sectionHeading: { fontSize: 28, fontWeight: '900', letterSpacing: -1, marginBottom: 8 },
   sectionSubheading: { fontSize: 15, lineHeight: 22, fontWeight: '600', marginBottom: 32 },
   row: { flexDirection: 'row' },
+  flexOne: { flex: 1 },
+  flexTwo: { flex: 2 },
+  spacer16: { width: 16 },
+  textAreaSmall: { height: 80 },
+  textAreaLarge: { height: 120 },
   footer: { marginTop: 32, gap: 16, flexDirection: 'row-reverse' },
   cancelBtn: { flex: 1, height: 60, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   cancelTxt: { fontSize: 16, fontWeight: '800' },

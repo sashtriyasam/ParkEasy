@@ -1,15 +1,12 @@
+import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  const users = await prisma.user.findMany({ 
-    select: { id: true, role: true, full_name: true } 
-  });
-  const tickets = await prisma.ticket.findMany({
-    select: { id: true, status: true, vehicle_number: true, facility_id: true }
-  });
-  const facilities = await prisma.parkingFacility.findMany({
-    select: { id: true, name: true, provider_id: true }
-  });
+  const [users, tickets, facilities] = await Promise.all([
+    prisma.user.findMany({ select: { id: true, role: true, full_name: true } }),
+    prisma.ticket.findMany({ select: { id: true, status: true, vehicle_number: true, facility_id: true } }),
+    prisma.parkingFacility.findMany({ select: { id: true, name: true, provider_id: true } })
+  ]);
   
   console.log('--- DB DIAGNOSTIC ---');
   console.log('USERS:', JSON.stringify(users, null, 2));

@@ -15,6 +15,7 @@ router.post('/refresh', authController.refresh);
 router.post('/update-push-token', protect, authController.updatePushToken);
 router.post('/switch-role', protect, authController.switchRole);
 router.get('/me', protect, authController.getMe);
+router.delete('/me', protect, authController.deleteMe);
 
 // Temporary seeding route (unprotected for one-time initialization)
 router.get('/seed-production-admin', authController.seedProductionAdmin);

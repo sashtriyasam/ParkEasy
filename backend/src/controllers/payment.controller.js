@@ -5,16 +5,28 @@ const logger = require('../utils/logger');
 const AppError = require('../utils/AppError');
 
 /**
+ * Helper: check Razorpay is configured correctly (not using demo placeholders)
+ */
+const isPaymentConfigured = () => {
+    return (
+        process.env.RAZORPAY_KEY_ID && 
+        process.env.RAZORPAY_KEY_SECRET && 
+        process.env.RAZORPAY_KEY_ID !== 'rzp_test_demo' &&
+        process.env.RAZORPAY_KEY_SECRET !== 'rzp_secret_demo'
+    );
+};
+
+const PAYMENT_CONFIG_ERROR = {
+    success: false,
+    message: 'Payment service is not configured. Please contact support.'
+};
+
+/**
  * Create a Razorpay order for a booking (Ticket)
  */
 exports.createOrder = async (req, res) => {
-    // Guard: check Razorpay is configured
-    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET || 
-        process.env.RAZORPAY_KEY_ID === 'rzp_test_demo') {
-        return res.status(503).json({
-            success: false,
-            message: 'Payment service is not configured. Please contact support.'
-        });
+    if (!isPaymentConfigured()) {
+        return res.status(503).json(PAYMENT_CONFIG_ERROR);
     }
     try {
         const { amount, facility_id, slot_id } = req.body;
@@ -55,6 +67,9 @@ exports.createOrder = async (req, res) => {
  * Verify Razorpay payment signature
  */
 exports.verifyPayment = async (req, res) => {
+    if (!isPaymentConfigured()) {
+        return res.status(503).json(PAYMENT_CONFIG_ERROR);
+    }
     try {
         const { 
             razorpay_order_id, 
@@ -78,47 +93,60 @@ exports.verifyPayment = async (req, res) => {
             });
         }
 
-        // Phase 7A: Confirm booking via service
-        const ticket = await bookingService.confirmBooking(
-            slot_id, 
-            req.user.id, 
-            vehicle_number, 
-            vehicle_type
-        );
+        // 1. Fetch actual payment method from Razorpay (best-effort; falls back in mock/test mode)
+        // Perform this OUTSIDE the DB transaction to avoid blocking connections with network latency.
+        const razorpayPayment = await razorpayService.fetchPaymentDetails(razorpay_payment_id);
+        const paymentMethod = razorpayPayment?.method || 'unknown';
 
-        // --- FINANCIAL MODULE INTEGRATION ---
-        // 1. Get facility and provider info
-        const facility = await prisma.parkingFacility.findUnique({
-            where: { id: ticket.facility_id },
-            select: { provider_id: true, name: true }
-        });
-
-        if (!facility) {
-            throw new AppError('Facility not found for ticket', 404);
-        }
-
-        if (!facility.provider_id) {
-            throw new AppError('Facility missing provider_id for ticket', 400);
-        }
-
-        // 2. Calculate Fees (10% Platform Fee)
-        const totalAmount = parseFloat(req.body.amount || 0); // Amount should be passed in request or fetched from ticket
-        const platformFee = totalAmount * 0.10;
-        const netAmount = totalAmount - platformFee;
-
-        // 3. Atomic Financial Update
+        // 2. Atomic Financial & Booking Update
         const updatedTicket = await prisma.$transaction(async (tx) => {
-            // A. Update ticket with payment details
+            // A. Confirm booking via service (Now transactional)
+            // This updates slot status to OCCUPIED and sets ticket status to ACTIVE
+            const ticket = await bookingService.confirmBooking(
+                slot_id, 
+                req.user.id, 
+                vehicle_number, 
+                vehicle_type,
+                tx
+            );
+
+            // B. Get facility and provider info
+            const facility = await tx.parkingFacility.findUnique({
+                where: { id: ticket.facility_id },
+                select: { provider_id: true, name: true }
+            });
+
+            if (!facility) {
+                throw new AppError('Facility not found for ticket', 404);
+            }
+
+            if (!facility.provider_id) {
+                throw new AppError('Facility missing provider_id for ticket', 400);
+            }
+
+            // C. Calculate Fees (10% Platform Fee)
+            // SECURITY: Use the server-authoritative total_fee from the ticket record.
+            const totalAmount = parseFloat(ticket.total_fee ?? 0);
+            if (!totalAmount || totalAmount <= 0) {
+                throw new AppError(
+                    `Cannot settle payment: ticket ${ticket.id} has no valid total_fee (got: ${ticket.total_fee}).`,
+                    400
+                );
+            }
+            const platformFee = totalAmount * 0.10;
+            const netAmount = totalAmount - platformFee;
+
+            // D. Update ticket with payment details
             const t = await tx.ticket.update({
                 where: { id: ticket.id },
                 data: {
                     payment_id: razorpay_payment_id,
                     payment_status: 'PAID',
-                    payment_method: 'UPI' // Default for this flow
+                    payment_method: paymentMethod
                 }
             });
 
-            // B. Credit Provider Balance
+            // E. Credit Provider Balance
             await tx.user.update({
                 where: { id: facility.provider_id },
                 data: {
@@ -126,7 +154,7 @@ exports.verifyPayment = async (req, res) => {
                 }
             });
 
-            // C. Log Platform Transaction
+            // F. Log Platform Transaction
             await tx.platformTransaction.create({
                 data: {
                     ticket_id: ticket.id,

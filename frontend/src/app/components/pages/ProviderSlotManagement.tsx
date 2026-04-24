@@ -78,9 +78,9 @@ export function ProviderSlotManagement() {
             // 2. Update Pricing Rule for this vehicle type
             if (slotRange.pricePerHour > 0) {
                 await providerService.setPricingRule({
-                    facility_id: id,
-                    vehicle_type: slotRange.vehicleType.toUpperCase(),
-                    hourly_rate: Number(slotRange.pricePerHour)
+                    facilityId: id,
+                    vehicleType: slotRange.vehicleType.toUpperCase(),
+                    hourlyRate: Number(slotRange.pricePerHour)
                 });
             }
 

@@ -11,48 +11,95 @@ import {
   Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ProfessionalCard } from '../../components/ui/ProfessionalCard';
 import { ProfessionalInput } from '../../components/ui/ProfessionalInput';
 import { ProfessionalButton } from '../../components/ui/ProfessionalButton';
 import { useThemeColors } from '../../hooks/useThemeColors';
 import { useHaptics } from '../../hooks/useHaptics';
+import { useToast } from '../../components/Toast';
 import { get, post } from '../../services/api';
+
+interface Facility {
+  id: string;
+  name: string;
+  address: string;
+}
+
+interface ManualFormData {
+  facility_id: string;
+  vehicle_number: string;
+  vehicle_type: 'car' | 'bike' | 'truck';
+  slot_id: string;
+}
+
+interface VehicleTypeBtnProps {
+  type: 'car' | 'bike' | 'truck';
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  isActive: boolean;
+  onPress: (type: 'car' | 'bike' | 'truck') => void;
+  colors: any;
+}
+
+const VehicleTypeBtn = React.memo(({ type, icon, label, isActive, onPress, colors }: VehicleTypeBtnProps) => (
+  <TouchableOpacity
+    activeOpacity={0.7}
+    onPress={() => onPress(type)}
+    style={[
+      styles.typeBtn,
+      {
+        backgroundColor: isActive ? colors.primary : (colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'),
+        borderColor: isActive ? colors.primary : colors.border
+      }
+    ]}
+  >
+    <Ionicons name={icon} size={20} color={isActive ? '#FFF' : colors.textMuted} />
+    <Text style={[styles.typeLabel, { color: isActive ? '#FFF' : colors.textPrimary }]}>{label}</Text>
+  </TouchableOpacity>
+));
 
 export default function ManualEntryScreen() {
   const router = useRouter();
   const colors = useThemeColors();
   const haptics = useHaptics();
+  const { showToast } = useToast();
 
   const [loading, setLoading] = useState(false);
-  const [facilities, setFacilities] = useState<any[]>([]);
+  const [facilities, setFacilities] = useState<Facility[]>([]);
   const [fetchingFacilities, setFetchingFacilities] = useState(true);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<ManualFormData>({
     facility_id: '',
     vehicle_number: '',
-    vehicle_type: 'car' as 'car' | 'bike' | 'truck',
+    vehicle_type: 'car',
     slot_id: ''
   });
 
   useEffect(() => {
+    const controller = new AbortController();
     const loadFacilities = async () => {
       try {
-        const res = await get('/provider/facilities');
+        const res = await get('/provider/facilities', { signal: controller.signal });
         if (res.data?.data) {
           setFacilities(res.data.data);
           if (res.data.data.length > 0) {
-            setFormData((prev: any) => ({ ...prev, facility_id: res.data.data[0].id }));
+            setFormData(prev => ({ ...prev, facility_id: res.data.data[0].id }));
           }
         }
-      } catch (error) {
+      } catch (error: any) {
+        if (error.name === 'CanceledError' || error.name === 'AbortError') return;
         console.error('Error loading facilities:', error);
+        showToast('Failed to load facilities', 'error');
       } finally {
-        setFetchingFacilities(false);
+        if (!controller.signal.aborted) {
+          setFetchingFacilities(false);
+        }
       }
     };
     loadFacilities();
-  }, []);
+    return () => controller.abort();
+  }, [showToast]);
 
   const handleSubmit = async () => {
     if (!formData.facility_id) return Alert.alert('Error', 'Please select a facility');
@@ -66,7 +113,7 @@ export default function ManualEntryScreen() {
         facility_id: formData.facility_id,
         vehicle_number: formData.vehicle_number.toUpperCase().trim(),
         vehicle_type: formData.vehicle_type,
-        slot_id: formData.slot_id || null
+        slot_id: formData.slot_id?.trim() || null
       });
 
       if (res.data?.status === 'success') {
@@ -86,28 +133,10 @@ export default function ManualEntryScreen() {
     }
   };
 
-  const VehicleTypeBtn = ({ type, icon, label }: { type: 'car' | 'bike' | 'truck', icon: any, label: string }) => {
-    const isActive = formData.vehicle_type === type;
-    return (
-      <TouchableOpacity
-        activeOpacity={0.7}
-        onPress={() => {
-          haptics.impactLight();
-          setFormData((prev: any) => ({ ...prev, vehicle_type: type }));
-        }}
-        style={[
-          styles.typeBtn,
-          {
-            backgroundColor: isActive ? colors.primary : (colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'),
-            borderColor: isActive ? colors.primary : colors.border
-          }
-        ]}
-      >
-        <Ionicons name={icon} size={20} color={isActive ? '#FFF' : colors.textMuted} />
-        <Text style={[styles.typeLabel, { color: isActive ? '#FFF' : colors.textPrimary }]}>{label}</Text>
-      </TouchableOpacity>
-    );
-  };
+  const handleTypeSelect = React.useCallback((type: 'car' | 'bike' | 'truck') => {
+    haptics.impactLight();
+    setFormData(prev => ({ ...prev, vehicle_type: type }));
+  }, [haptics]);
 
   if (fetchingFacilities) {
     return (
@@ -130,18 +159,18 @@ export default function ManualEntryScreen() {
         <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>FACILITY SELECTION</Text>
         <View style={styles.facilityGrid}>
           {facilities.length === 0 ? (
-            <View style={styles.emptyContainer}>
+            <View style={[styles.emptyContainer, { borderColor: colors.border }]}>
                <Ionicons name="business-outline" size={32} color={colors.textMuted} />
                <Text style={[styles.emptyText, { color: colors.textMuted }]}>No Facilities Found</Text>
                <Text style={[styles.emptySubtext, { color: colors.textMuted }]}>Link facilities to your account via provider console.</Text>
             </View>
           ) : (
-            facilities.map((f: any) => (
+            facilities.map((f) => (
               <ProfessionalCard 
                 key={f.id}
                 onPress={() => {
                   haptics.impactLight();
-                  setFormData((prev: any) => ({ ...prev, facility_id: f.id }));
+                  setFormData(prev => ({ ...prev, facility_id: f.id }));
                 }}
                 style={[
                   styles.facilityCard, 
@@ -174,9 +203,30 @@ export default function ManualEntryScreen() {
 
           <Text style={[styles.inputLabel, { color: colors.textMuted, marginTop: 12 }]}>Vehicle Category</Text>
           <View style={styles.typeRow}>
-            <VehicleTypeBtn type="bike" icon="bicycle" label="Bike" />
-            <VehicleTypeBtn type="car" icon="car" label="Car" />
-            <VehicleTypeBtn type="truck" icon="bus" label="Truck" />
+            <VehicleTypeBtn 
+              type="bike" 
+              icon="bicycle" 
+              label="Bike" 
+              isActive={formData.vehicle_type === 'bike'}
+              onPress={handleTypeSelect}
+              colors={colors}
+            />
+            <VehicleTypeBtn 
+              type="car" 
+              icon="car" 
+              label="Car" 
+              isActive={formData.vehicle_type === 'car'}
+              onPress={handleTypeSelect}
+              colors={colors}
+            />
+            <VehicleTypeBtn 
+              type="truck" 
+              icon="bus" 
+              label="Truck" 
+              isActive={formData.vehicle_type === 'truck'}
+              onPress={handleTypeSelect}
+              colors={colors}
+            />
           </View>
 
           <View style={{ marginTop: 24 }}>
@@ -246,7 +296,6 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: 'rgba(0,0,0,0.1)'
   },
   emptyText: { fontSize: 16, fontWeight: '900', marginTop: 12 },
   emptySubtext: { fontSize: 13, fontWeight: '500', textAlign: 'center', marginTop: 4, opacity: 0.8 }

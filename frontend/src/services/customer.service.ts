@@ -9,6 +9,7 @@ import type {
     Vehicle,
     Reservation,
     BookingRequest,
+    SlotAvailabilityResponse,
 } from '../types';
 
 export const customerService = {
@@ -56,10 +57,13 @@ export const customerService = {
         return response.data.data;
     },
 
-    async getSlotAvailability(facilityId: string, slotId: string, date?: string): Promise<any> {
-        const response = await apiClient.get<ApiResponse<any>>(
+    async getSlotAvailability(facilityId: string, slotId: string, date?: string): Promise<SlotAvailabilityResponse> {
+        const params: Record<string, string> = {};
+        if (date !== undefined) params.date = date;
+
+        const response = await apiClient.get<ApiResponse<SlotAvailabilityResponse>>(
             `/customer/facility/${facilityId}/slots/${slotId}/availability`,
-            { params: { date } }
+            { params }
         );
         return response.data.data;
     },

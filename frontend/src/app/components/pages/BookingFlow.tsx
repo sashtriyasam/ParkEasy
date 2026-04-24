@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useNavigate, useLocation, useParams } from 'react-router-dom';
+import { useNavigate, useLocation, useParams, Navigate } from 'react-router-dom';
 import { Car, Bike, Truck, CreditCard, Smartphone, Clock, Check, ChevronLeft, Navigation, MapPin, CalendarClock, ArrowRight } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
@@ -10,6 +10,8 @@ import { useApp } from '@/context/AppContext';
 import type { VehicleType, PaymentMethod } from '@/types';
 import { toast } from 'sonner';
 import QRCode from 'react-qr-code';
+
+const DEFAULT_PRICE = 60;
 
 // Helper: round time to nearest 15 minutes
 function roundToNext15(date: Date): Date {
@@ -45,7 +47,11 @@ export function BookingVehicle() {
   const { id } = useParams();
   const { getFacilityById, createBooking, user } = useApp();
 
-  const facility = getFacilityById(id!);
+  if (!id) {
+    return <Navigate to="/customer/search" replace />;
+  }
+
+  const facility = getFacilityById(id);
   const { slotId } = location.state || {};
 
   const [vehicleNumber, setVehicleNumber] = useState('');
@@ -70,7 +76,7 @@ export function BookingVehicle() {
     const h = Math.floor(hours);
     const m = Math.round((hours - h) * 60);
 
-    const pricePerHour = 60; // Default, should come from facility pricing
+    const pricePerHour = Number(facility?.price_per_hour) || DEFAULT_PRICE;
     const amount = Math.round(pricePerHour * hours);
 
     return {
@@ -294,22 +300,22 @@ export function BookingVehicle() {
               id="upi"
               title="UPI"
               icon={Smartphone}
-              selected={paymentMethod}
-              onSelect={() => setPaymentMethod('upi')}
+              selected={paymentMethod === 'upi'}
+              onSelect={(id) => setPaymentMethod(id as PaymentMethod)}
             />
             <PaymentOption
               id="card"
               title="Credit/Debit Card"
               icon={CreditCard}
-              selected={paymentMethod}
-              onSelect={() => setPaymentMethod('card')}
+              selected={paymentMethod === 'card'}
+              onSelect={(id) => setPaymentMethod(id as PaymentMethod)}
             />
             <PaymentOption
               id="pay-at-exit"
               title="Pay at Location"
               icon={Clock}
-              selected={paymentMethod}
-              onSelect={() => setPaymentMethod('pay-at-exit')}
+              selected={paymentMethod === 'pay-at-exit'}
+              onSelect={(id) => setPaymentMethod(id as PaymentMethod)}
             />
           </div>
         </div>
@@ -335,19 +341,26 @@ export function BookingVehicle() {
   );
 }
 
-function PaymentOption({ id, title, icon: Icon, selected, onSelect }: any) {
-  const isSelected = selected === id;
+interface PaymentOptionProps {
+  id: string | number;
+  title: string;
+  icon: React.ElementType;
+  selected: boolean;
+  onSelect: (id: any) => void;
+}
+
+function PaymentOption({ id, title, icon: Icon, selected, onSelect }: PaymentOptionProps) {
   return (
     <div
-      onClick={onSelect}
-      className={`flex items-center p-4 rounded-xl border-2 cursor-pointer transition-all ${isSelected ? 'border-indigo-600 bg-indigo-50' : 'border-gray-100 bg-white hover:border-gray-200'
+      onClick={() => onSelect(id)}
+      className={`flex items-center p-4 rounded-xl border-2 cursor-pointer transition-all ${selected ? 'border-indigo-600 bg-indigo-50' : 'border-gray-100 bg-white hover:border-gray-200'
         }`}
     >
-      <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 ${isSelected ? 'bg-indigo-200 text-indigo-700' : 'bg-gray-100 text-gray-500'}`}>
+      <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 ${selected ? 'bg-indigo-200 text-indigo-700' : 'bg-gray-100 text-gray-500'}`}>
         <Icon className="w-5 h-5" />
       </div>
-      <span className={`font-bold ${isSelected ? 'text-indigo-900' : 'text-gray-700'}`}>{title}</span>
-      {isSelected && <Check className="w-5 h-5 text-indigo-600 ml-auto" />}
+      <span className={`font-bold ${selected ? 'text-indigo-900' : 'text-gray-700'}`}>{title}</span>
+      {selected && <Check className="w-5 h-5 text-indigo-600 ml-auto" />}
     </div>
   );
 }

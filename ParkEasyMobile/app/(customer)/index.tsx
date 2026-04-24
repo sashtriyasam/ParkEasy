@@ -13,7 +13,6 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { mapAppearance, darkMapAppearance } from '../../constants/mapAppearance';
 import { ProfessionalCard } from '../../components/ui/ProfessionalCard';
@@ -33,13 +32,15 @@ const { width } = Dimensions.get('window');
 const DASHBOARD_HEIGHT = 240;
 const CARD_WIDTH = width * 0.82;
 const CARD_GAP = 16;
+const NEAR_ME_DISTANCE_KM = 5;
+const LOW_PRICE_THRESHOLD = 100;
 
 export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
   const colors = useThemeColors();
   const haptics = useHaptics();
-  const mapRef = useRef<any>(null);
+  const mapRef = useRef<MapView>(null);
   const insets = useSafeAreaInsets();
 
   const [loading, setLoading] = useState(true);
@@ -53,9 +54,9 @@ export default function HomeScreen() {
     return facilities.filter(f => {
       switch (activeFilter) {
         case 'Near Me':
-          return (f.distance || 0) <= 5;
+          return (f.distance || 0) <= NEAR_ME_DISTANCE_KM;
         case 'Low Price':
-          return (f.price_per_hour || 0) <= 100;
+          return (f.price_per_hour || 0) <= LOW_PRICE_THRESHOLD;
         case 'Valet':
           return f.amenities?.some(a => a.toLowerCase().includes('valet'));
         case 'EV':
@@ -275,7 +276,7 @@ export default function HomeScreen() {
                </View>
             ) : filteredFacilities.length > 0 ? (
                filteredFacilities.map((f, i) => (
-                  <Animated.View key={f.id} entering={FadeInUp.delay(300 + i * 100)}>
+                  <Animated.View key={f.id} entering={FadeInUp.delay(Math.min(300 + i * 50, 600))}>
                      <ParkingFacilityCard
                         facility={f}
                         distance={f.distance}
