@@ -2,11 +2,10 @@ services:
   # 1. Backend Web Service (Node.js + Prisma + Sockets)
   - type: web
     name: parkeasy-backend
-    env: node
+    env: docker
     plan: free
     rootDir: .
-    buildCommand: "cd backend && npm install && npx prisma generate && cd ../frontend && npm install && VITE_API_URL=/api/v1 npm run build && cd ../backend && mkdir -p public && cp -r ../frontend/dist/* ./public/"
-    startCommand: "cd backend && node index.js"
+    dockerfilePath: Dockerfile
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
