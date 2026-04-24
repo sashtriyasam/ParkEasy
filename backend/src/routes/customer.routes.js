@@ -42,6 +42,7 @@ router.post('/tickets/:ticketId/extend', restrictTo('CUSTOMER', 'ADMIN'), ticket
 
 // --- BOOKING FLOW (NEW) ---
 router.post('/booking/confirm', restrictTo('CUSTOMER', 'ADMIN'), bookingController.createBookingWithPayment);
+router.post('/bookings', restrictTo('CUSTOMER', 'ADMIN'), bookingController.createBookingWithPayment); // Alias for mobile app
 router.post('/tickets/:ticketId/cancel', restrictTo('CUSTOMER', 'PROVIDER', 'ADMIN'), bookingController.cancelBooking);
 // Primary PDF download route.
 // The second route is a legacy alias for browser-friendly direct downloads (e.g. mobile WebView links

@@ -54,9 +54,9 @@ export function ProviderQRScanner() {
                         { facingMode: "environment" }, 
                         config,
                         (decodedText) => {
-                            console.log("QR Raw Data:", decodedText);
+                            console.log("[Scanner] QR Decoded:", decodedText);
                             if (html5QrCode) {
-                                html5QrCode.stop().catch(err => console.error("Stop failed", err));
+                                html5QrCode.stop().catch(err => console.error("[Scanner] Stop Error:", err));
                             }
                             handleVerify(decodedText);
                         },
@@ -99,6 +99,7 @@ export function ProviderQRScanner() {
                 params.vehicle_number = rawData;
             }
 
+            console.log(`[Scanner] Verifying with Params:`, params);
             const response = await apiClient.get('/provider/check-vehicle', { params });
             const data = response.data.data;
             const ticket = data.active_ticket;
@@ -262,6 +263,9 @@ export function ProviderQRScanner() {
                                     <div className="flex items-center justify-center gap-4 mt-2">
                                         <span className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground uppercase">
                                             <Phone className="w-3 h-3" /> {scanResult.customer_phone}
+                                        </span>
+                                        <span className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground uppercase">
+                                            <ShieldCheck className="w-3 h-3" /> {scanResult.customer_email}
                                         </span>
                                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${
                                             scanResult.status === 'PENDING_PAYMENT' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'

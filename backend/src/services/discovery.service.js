@@ -166,8 +166,15 @@ const getFacilityDetails = async (facilityId) => {
         throw new AppError('Facility not found', 404);
     }
 
-    // Aggregate slot stats
+    // Aggregate slot stats and pricing map
     const slotStats = {};
+    const pricingMap = {};
+    
+    // Create pricing lookup
+    (facility.pricing_rules || []).forEach(rule => {
+        pricingMap[rule.vehicle_type] = rule.hourly_rate;
+    });
+
     facility.floors.forEach(floor => {
         floor.parking_slots.forEach(slot => {
             if (!slotStats[slot.vehicle_type]) {
@@ -176,12 +183,18 @@ const getFacilityDetails = async (facilityId) => {
             slotStats[slot.vehicle_type].total++;
             if (slot.status === 'FREE') slotStats[slot.vehicle_type].available++;
             if (slot.status === 'OCCUPIED') slotStats[slot.vehicle_type].occupied++;
+            
+            // Ensure slot has price_per_hour attached if missing
+            if (!slot.price_per_hour) {
+                slot.price_per_hour = pricingMap[slot.vehicle_type] || 20; // Default fallback to 20
+            }
         });
     });
 
     return {
         ...facility,
-        slot_stats: slotStats
+        slot_stats: slotStats,
+        pricing_map: pricingMap
     };
 };
 
@@ -236,8 +249,8 @@ const getAvailableSlots = async (facilityId, filters = {}) => {
             vehicle_type: slot.vehicle_type,
             status: slot.status,
             area_sqft: slot.area_sqft,
-            // Inject price_per_hour from facility pricing rules
-            price_per_hour: pricingMap[slot.vehicle_type] ?? null
+            // Inject price_per_hour from facility pricing rules with a system fallback
+            price_per_hour: pricingMap[slot.vehicle_type] ?? 20
         });
     });
 

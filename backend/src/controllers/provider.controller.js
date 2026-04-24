@@ -811,6 +811,7 @@ const checkVehicleByPlate = asyncHandler(async (req, res, next) => {
                 vehicle_type: activeTicket.vehicle_type,
                 customer_name: activeTicket.customer_name || activeTicket.customer?.full_name || 'Guest',
                 customer_phone: activeTicket.customer_phone || activeTicket.customer?.phone_number || 'N/A',
+                customer_email: activeTicket.customer?.email || 'N/A',
                 slot: activeTicket.slot?.slot_number,
                 floor: activeTicket.slot?.floor?.floor_name,
                 facility_id: activeTicket.facility.id,
@@ -824,7 +825,9 @@ const checkVehicleByPlate = asyncHandler(async (req, res, next) => {
                 entry_time: t.entry_time,
                 exit_time: t.exit_time,
                 total_fee: t.total_fee,
-                status: t.status
+                status: t.status,
+                vehicle_number: t.vehicle_number,
+                customer_name: t.customer_name || t.customer?.full_name || 'Guest'
             }))
         }
     });

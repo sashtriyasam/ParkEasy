@@ -276,76 +276,98 @@ const createBookingWithPayment = asyncHandler(async (req, res, next) => {
     // Only mark OCCUPIED if booking starts within 15 minutes
     const startsWithin15Min = (bookingStart.getTime() - now.getTime()) <= 15 * 60 * 1000;
 
+    console.log(`[BookingFlow] Initiating transaction for Slot: ${slot_id}, User: ${customer_id}, Start: ${bookingStart.toISOString()}`);
+
     // Transaction to ensure slot is locked and ticket is created
-    const ticket = await prisma.$transaction(async (tx) => {
-        // Double check availability inside transaction
-        const overlapping = await tx.ticket.findFirst({
-            where: {
-                slot_id: slot_id,
-                status: { in: ['ACTIVE', 'PENDING_PAYMENT'] },
-                entry_time: { lt: bookingEnd },
-                exit_time: { gt: bookingStart }
-            }
-        });
-
-        if (overlapping) {
-            throw new AppError('Slot is no longer available for this time window', 409);
-        }
-
-        // Update slot status only if booking starts now
-        if (startsWithin15Min) {
-            await tx.parkingSlot.update({
-                where: { id: slot_id },
-                data: { status: 'OCCUPIED' }
+    let ticket;
+    try {
+        ticket = await prisma.$transaction(async (tx) => {
+            // Double check availability inside transaction
+            const overlapping = await tx.ticket.findFirst({
+                where: {
+                    slot_id: slot_id,
+                    status: { in: ['ACTIVE', 'PENDING_PAYMENT', 'RESERVED'] },
+                    entry_time: { lt: bookingEnd },
+                    exit_time: { gt: bookingStart }
+                }
             });
-        }
 
-        // Create ticket with both entry_time and exit_time (scheduled window)
-        return await tx.ticket.create({
-            data: {
-                customer_id,
-                facility_id: slot.floor.facility.id,
-                slot_id,
-                vehicle_number,
-                vehicle_type,
-                entry_time: bookingStart,
-                exit_time: bookingEnd,
-                status: 'ACTIVE',
-                total_fee: totalFee,
-                payment_status: payment_method === 'PAY_AT_EXIT' ? 'PENDING' : 'PAID',
-                payment_method,
-                payment_id: paymentResult.paymentId,
-            },
-            include: {
-                slot: {
-                    include: {
-                        floor: {
-                            include: {
-                                facility: true
+            if (overlapping) {
+                console.warn(`[BookingFlow] Overlap detected for Slot ${slot_id} during transaction`);
+                throw new AppError('Slot is no longer available for this time window', 409);
+            }
+
+            // Update slot status only if booking starts now
+            if (startsWithin15Min) {
+                await tx.parkingSlot.update({
+                    where: { id: slot_id },
+                    data: { status: 'OCCUPIED' }
+                });
+            }
+
+            // Create ticket with both entry_time and exit_time (scheduled window)
+            return await tx.ticket.create({
+                data: {
+                    customer_id,
+                    facility_id: slot.floor.facility.id,
+                    slot_id,
+                    vehicle_number,
+                    vehicle_type,
+                    entry_time: bookingStart,
+                    exit_time: bookingEnd,
+                    status: 'ACTIVE',
+                    total_fee: totalFee,
+                    payment_status: payment_method === 'PAY_AT_EXIT' ? 'PENDING' : 'PAID',
+                    payment_method,
+                    payment_id: paymentResult?.paymentId || `TEST_${Date.now()}`,
+                },
+                include: {
+                    slot: {
+                        include: {
+                            floor: {
+                                include: {
+                                    facility: true
+                                }
                             }
                         }
-                    }
-                },
-                facility: true,
-            }
+                    },
+                    facility: true,
+                }
+            });
+        }, {
+            timeout: 10000 // 10s timeout
         });
-    });
+    } catch (err) {
+        console.error('[BookingFlow] Transaction Failed:', err.message);
+        return next(err instanceof AppError ? err : new AppError(`Booking transaction failed: ${err.message}`, 500));
+    }
 
-    // Generate QR code
-    const qrCode = await generateTicketQRCode({
-        ticketId: ticket.id,
-        slotId: slot_id,
-        vehicleNumber: vehicle_number,
-        entryTime: bookingStart.toISOString(),
-        exitTime: bookingEnd.toISOString(),
-        facilityId: slot.floor.facility.id,
-    });
+    console.log(`[BookingFlow] Ticket Created: ${ticket.id}. Proceeding to Post-Generation.`);
 
-    // Update ticket with QR code
-    await prisma.ticket.update({
-        where: { id: ticket.id },
-        data: { qr_code: qrCode }
-    });
+    // Generate QR code and PDF OUTSIDE the transaction to prevent timeouts
+    let qrCode = null;
+    try {
+        qrCode = await generateTicketQRCode({
+            ticketId: ticket.id,
+            slotId: slot_id,
+            vehicleNumber: vehicle_number,
+            entryTime: bookingStart.toISOString(),
+            exitTime: bookingEnd.toISOString(),
+            facilityId: slot.floor.facility.id,
+        });
+
+        // Update ticket with QR code asynchronously
+        prisma.ticket.update({
+            where: { id: ticket.id },
+            data: { qr_code: qrCode }
+        }).catch(err => console.error('[BookingFlow] QR Save Error:', err));
+
+        // Generate PDF (Optional: can be done on demand, but doing it here for completeness)
+        // We don't wait for PDF generation to return the response
+        generateTicketPDF(ticket).catch(err => console.error('[BookingFlow] PDF Pre-gen Error:', err));
+    } catch (genErr) {
+        console.warn('[BookingFlow] QR/PDF generation failed, but booking is secured:', genErr.message);
+    }
 
     // Emit socket event for real-time update
     if (startsWithin15Min) {
@@ -360,7 +382,7 @@ const createBookingWithPayment = asyncHandler(async (req, res, next) => {
         status: 'success',
         data: {
             ...ticket,
-            qr_code: qrCode,
+            qr_code: qrCode || ticket.qr_code,
             duration_hours: Math.round(durationHours * 100) / 100,
         }
     });
