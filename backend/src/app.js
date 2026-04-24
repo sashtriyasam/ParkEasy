@@ -76,8 +76,8 @@ app.use(cors({
     credentials: true,
 }));
 
-// Base Root Route (Avoids 404 in Render Dashboard)
-app.get('/', (req, res) => {
+// API Status Check (Moved from root to avoid blocking frontend)
+app.get('/api/status', (req, res) => {
     res.status(200).json({
         message: 'ParkEasy API is running!',
         health: '/health',
